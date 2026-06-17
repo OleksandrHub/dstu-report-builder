@@ -11,6 +11,7 @@ import type {
   TitleBlock,
   TitleSpacerBlock,
   TitlePageTemplate,
+  TitleDataTemplate,
 } from '../types/document'
 import {
   DEFAULT_SETTINGS,
@@ -18,6 +19,7 @@ import {
   DEFAULT_INTRO,
   DEFAULT_TITLE_TEMPLATE,
   TITLE_TEMPLATES_STORAGE_KEY,
+  TITLE_DATA_TEMPLATES_KEY,
 } from '../types/document'
 
 const STORAGE_KEY = 'dstu-report-builder-documents'
@@ -57,6 +59,19 @@ function loadTemplatesFromStorage(): TitlePageTemplate[] {
 
 function saveTemplatesToStorage(templates: TitlePageTemplate[]) {
   localStorage.setItem(TITLE_TEMPLATES_STORAGE_KEY, JSON.stringify(templates))
+}
+
+function loadDataTemplatesFromStorage(): TitleDataTemplate[] {
+  try {
+    const raw = localStorage.getItem(TITLE_DATA_TEMPLATES_KEY)
+    return raw ? (JSON.parse(raw) as TitleDataTemplate[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveDataTemplatesToStorage(templates: TitleDataTemplate[]) {
+  localStorage.setItem(TITLE_DATA_TEMPLATES_KEY, JSON.stringify(templates))
 }
 
 function loadFromStorage(): ReportDocument[] {
@@ -101,6 +116,7 @@ export const useReportStore = defineStore('report', () => {
   const documents = ref<ReportDocument[]>(rawDocs)
   const activeDocumentId = ref<string | null>(localStorage.getItem(ACTIVE_DOC_KEY))
   const titleTemplates = ref<TitlePageTemplate[]>(loadTemplatesFromStorage())
+  const titleDataTemplates = ref<TitleDataTemplate[]>(loadDataTemplatesFromStorage())
 
   if (documents.value.length === 0) {
     const first = createDocument('Лабораторна робота №1')
@@ -113,6 +129,7 @@ export const useReportStore = defineStore('report', () => {
   }
 
   watch(titleTemplates, (t) => saveTemplatesToStorage(t), { deep: true })
+  watch(titleDataTemplates, (t) => saveDataTemplatesToStorage(t), { deep: true })
 
   const activeDocument = computed<ReportDocument | null>(() =>
     documents.value.find(d => d.id === activeDocumentId.value) ?? null
@@ -471,6 +488,36 @@ export const useReportStore = defineStore('report', () => {
     if (tpl) tpl.name = name
   }
 
+  // --- Title data templates ---
+
+  function saveAsDataTemplate(name: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    titleDataTemplates.value.push({
+      id: generateId(),
+      name,
+      data: { ...doc.titlePage },
+    })
+  }
+
+  function applyDataTemplate(templateId: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const tpl = titleDataTemplates.value.find(t => t.id === templateId)
+    if (!tpl) return
+    doc.titlePage = { ...doc.titlePage, ...tpl.data }
+    touchActive()
+  }
+
+  function deleteDataTemplate(templateId: string) {
+    titleDataTemplates.value = titleDataTemplates.value.filter(t => t.id !== templateId)
+  }
+
+  function renameDataTemplate(templateId: string, name: string) {
+    const tpl = titleDataTemplates.value.find(t => t.id === templateId)
+    if (tpl) tpl.name = name
+  }
+
   return {
     documents,
     activeDocumentId,
@@ -505,5 +552,10 @@ export const useReportStore = defineStore('report', () => {
     applyTemplate,
     deleteTemplate,
     renameTemplate,
+    titleDataTemplates,
+    saveAsDataTemplate,
+    applyDataTemplate,
+    deleteDataTemplate,
+    renameDataTemplate,
   }
 })

@@ -337,61 +337,65 @@ function buildBlock(
   return []
 }
 
-export function useDocxExport() {
-  async function exportToDocx(doc: ReportDocument): Promise<void> {
-    const s = doc.settings
-    const cfg: FontConfig = {
-      name: s.fontFamily,
-      size: ptToHalfPt(s.fontSize),
-      lineSpacing: s.lineSpacing,
-      paragraphIndent: s.paragraphIndent,
-    }
+async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
+  const s = doc.settings
+  const cfg: FontConfig = {
+    name: s.fontFamily,
+    size: ptToHalfPt(s.fontSize),
+    lineSpacing: s.lineSpacing,
+    paragraphIndent: s.paragraphIndent,
+  }
 
-    const counters = { image: 0, code: 0, table: 0 }
+  const counters = { image: 0, code: 0, table: 0 }
 
-    const titleChildren = buildTitlePage(doc, cfg)
-    const introChildren = buildIntro(doc, cfg)
-    const bodyChildren: (Paragraph | Table)[] = []
+  const titleChildren = buildTitlePage(doc, cfg)
+  const introChildren = buildIntro(doc, cfg)
+  const bodyChildren: (Paragraph | Table)[] = []
 
-    for (const block of doc.blocks) {
-      const elements = buildBlock(block, doc, cfg, counters)
-      bodyChildren.push(...elements)
-    }
+  for (const block of doc.blocks) {
+    const elements = buildBlock(block, doc, cfg, counters)
+    bodyChildren.push(...elements)
+  }
 
-    const docxDoc = new Document({
-      styles: {
-        default: {
-          document: {
-            run: {
-              font: cfg.name,
-              size: cfg.size,
-            },
+  const docxDoc = new Document({
+    styles: {
+      default: {
+        document: {
+          run: {
+            font: cfg.name,
+            size: cfg.size,
           },
         },
       },
-      sections: [
-        {
-          properties: {
-            page: {
-              margin: {
-                left: cmToTwip(s.marginLeft),
-                right: cmToTwip(s.marginRight),
-                top: cmToTwip(s.marginTop),
-                bottom: cmToTwip(s.marginBottom),
-              },
+    },
+    sections: [
+      {
+        properties: {
+          page: {
+            margin: {
+              left: cmToTwip(s.marginLeft),
+              right: cmToTwip(s.marginRight),
+              top: cmToTwip(s.marginTop),
+              bottom: cmToTwip(s.marginBottom),
             },
           },
-          children: [
-            ...titleChildren,
-            new Paragraph({ children: [], pageBreakBefore: true }),
-            ...introChildren,
-            ...bodyChildren,
-          ],
         },
-      ],
-    })
+        children: [
+          ...titleChildren,
+          new Paragraph({ children: [], pageBreakBefore: true }),
+          ...introChildren,
+          ...bodyChildren,
+        ],
+      },
+    ],
+  })
 
-    const blob = await Packer.toBlob(docxDoc)
+  return Packer.toBlob(docxDoc)
+}
+
+export function useDocxExport() {
+  async function exportToDocx(doc: ReportDocument): Promise<void> {
+    const blob = await buildDocxBlob(doc)
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -400,7 +404,11 @@ export function useDocxExport() {
     URL.revokeObjectURL(url)
   }
 
-  return { exportToDocx }
+  async function getPreviewBlob(doc: ReportDocument): Promise<Blob> {
+    return buildDocxBlob(doc)
+  }
+
+  return { exportToDocx, getPreviewBlob }
 }
 
 // suppress unused warning for CM_TO_EMU — used conceptually for image dimensions

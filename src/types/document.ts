@@ -140,6 +140,14 @@ export interface TitlePageTemplate {
   blocks: TitleBlock[]
 }
 
+export interface TitleDataTemplate {
+  id: string
+  name: string
+  data: Partial<TitlePageData>
+}
+
+export const TITLE_DATA_TEMPLATES_KEY = 'dstu-title-data-templates'
+
 // Variables available in title templates: {{ministry}}, {{university}}, {{department}},
 // {{workType}}, {{workNumber}}, {{topic}}, {{discipline}},
 // {{studentGroup}}, {{studentName}}, {{teacherTitle}}, {{teacherName}}, {{city}}, {{year}}
