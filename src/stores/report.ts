@@ -1,0 +1,359 @@
+import { defineStore } from 'pinia'
+import { ref, computed, watch } from 'vue'
+import type {
+  ReportDocument,
+  ReportBlock,
+  DocumentSettings,
+  TitlePageData,
+  WorkIntro,
+  ListItem,
+  TableRow,
+} from '../types/document'
+import {
+  DEFAULT_SETTINGS,
+  DEFAULT_TITLE_PAGE,
+  DEFAULT_INTRO,
+} from '../types/document'
+
+const STORAGE_KEY = 'dstu-report-builder-documents'
+const ACTIVE_DOC_KEY = 'dstu-report-builder-active'
+
+function generateId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2)
+}
+
+function createDocument(name: string): ReportDocument {
+  return {
+    id: generateId(),
+    name,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    titlePage: { ...DEFAULT_TITLE_PAGE, year: new Date().getFullYear().toString() },
+    intro: { ...DEFAULT_INTRO },
+    settings: { ...DEFAULT_SETTINGS },
+    blocks: [],
+  }
+}
+
+function loadFromStorage(): ReportDocument[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return []
+    return JSON.parse(raw) as ReportDocument[]
+  } catch {
+    return []
+  }
+}
+
+function saveToStorage(docs: ReportDocument[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(docs))
+}
+
+export const useReportStore = defineStore('report', () => {
+  const documents = ref<ReportDocument[]>(loadFromStorage())
+  const activeDocumentId = ref<string | null>(localStorage.getItem(ACTIVE_DOC_KEY))
+
+  if (documents.value.length === 0) {
+    const first = createDocument('Лабораторна робота №1')
+    documents.value.push(first)
+    activeDocumentId.value = first.id
+  }
+
+  if (activeDocumentId.value && !documents.value.find(d => d.id === activeDocumentId.value)) {
+    activeDocumentId.value = documents.value[0]?.id ?? null
+  }
+
+  const activeDocument = computed<ReportDocument | null>(() =>
+    documents.value.find(d => d.id === activeDocumentId.value) ?? null
+  )
+
+  watch(
+    documents,
+    (docs) => saveToStorage(docs),
+    { deep: true }
+  )
+
+  watch(activeDocumentId, (id) => {
+    if (id) localStorage.setItem(ACTIVE_DOC_KEY, id)
+  })
+
+  function touchActive() {
+    const doc = activeDocument.value
+    if (doc) doc.updatedAt = new Date().toISOString()
+  }
+
+  // --- Document management ---
+
+  function createNewDocument(name: string): string {
+    const doc = createDocument(name)
+    documents.value.push(doc)
+    activeDocumentId.value = doc.id
+    return doc.id
+  }
+
+  function duplicateDocument(id: string): string {
+    const src = documents.value.find(d => d.id === id)
+    if (!src) return ''
+    const copy: ReportDocument = JSON.parse(JSON.stringify(src))
+    copy.id = generateId()
+    copy.name = src.name + ' (копія)'
+    copy.createdAt = new Date().toISOString()
+    copy.updatedAt = new Date().toISOString()
+    copy.blocks = copy.blocks.map(b => ({ ...b, id: generateId() }))
+    documents.value.push(copy)
+    activeDocumentId.value = copy.id
+    return copy.id
+  }
+
+  function deleteDocument(id: string) {
+    const idx = documents.value.findIndex(d => d.id === id)
+    if (idx === -1) return
+    documents.value.splice(idx, 1)
+    if (documents.value.length === 0) {
+      const fresh = createDocument('Лабораторна робота №1')
+      documents.value.push(fresh)
+      activeDocumentId.value = fresh.id
+    } else if (activeDocumentId.value === id) {
+      activeDocumentId.value = documents.value[0]!.id
+    }
+  }
+
+  function renameDocument(id: string, name: string) {
+    const doc = documents.value.find(d => d.id === id)
+    if (doc) { doc.name = name; doc.updatedAt = new Date().toISOString() }
+  }
+
+  function setActiveDocument(id: string) {
+    activeDocumentId.value = id
+  }
+
+  // --- Title page ---
+
+  function updateTitlePage(data: Partial<TitlePageData>) {
+    const doc = activeDocument.value
+    if (!doc) return
+    doc.titlePage = { ...doc.titlePage, ...data }
+    touchActive()
+  }
+
+  // --- Intro ---
+
+  function updateIntro(data: Partial<WorkIntro>) {
+    const doc = activeDocument.value
+    if (!doc) return
+    doc.intro = { ...doc.intro, ...data }
+    touchActive()
+  }
+
+  // --- Settings ---
+
+  function updateSettings(data: Partial<DocumentSettings>) {
+    const doc = activeDocument.value
+    if (!doc) return
+    doc.settings = { ...doc.settings, ...data }
+    touchActive()
+  }
+
+  // --- Blocks ---
+
+  function addBlock(type: ReportBlock['type'], afterId?: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+
+    let block: ReportBlock
+
+    if (type === 'paragraph') {
+      block = { id: generateId(), type: 'paragraph', text: 'Текст абзацу...' }
+    } else if (type === 'heading') {
+      block = { id: generateId(), type: 'heading', text: 'Заголовок', level: 1 }
+    } else if (type === 'list') {
+      block = {
+        id: generateId(),
+        type: 'list',
+        ordered: false,
+        items: [
+          { id: generateId(), text: 'перший елемент' },
+          { id: generateId(), text: 'другий елемент' },
+        ],
+        introText: 'Перелік містить наступні елементи:',
+      }
+    } else if (type === 'code') {
+      block = {
+        id: generateId(),
+        type: 'code',
+        caption: 'Назва лістингу',
+        code: '// Ваш код тут\n',
+        language: 'typescript',
+        referenceText: 'Код програми подано у лістингу',
+      }
+    } else if (type === 'image') {
+      block = {
+        id: generateId(),
+        type: 'image',
+        src: '',
+        caption: 'Назва рисунка',
+        referenceText: 'Результат роботи програми наведено на рисунку',
+      }
+    } else {
+      block = {
+        id: generateId(),
+        type: 'table',
+        caption: 'Назва таблиці',
+        headers: ['Стовпець 1', 'Стовпець 2'],
+        rows: [
+          { id: generateId(), cells: [{ text: '' }, { text: '' }] },
+        ],
+        referenceText: 'Дані наведено у таблиці',
+      }
+    }
+
+    if (afterId) {
+      const idx = doc.blocks.findIndex(b => b.id === afterId)
+      if (idx !== -1) {
+        doc.blocks.splice(idx + 1, 0, block)
+        touchActive()
+        return
+      }
+    }
+
+    doc.blocks.push(block)
+    touchActive()
+  }
+
+  function removeBlock(id: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    doc.blocks = doc.blocks.filter(b => b.id !== id)
+    touchActive()
+  }
+
+  function moveBlock(id: string, direction: 'up' | 'down') {
+    const doc = activeDocument.value
+    if (!doc) return
+    const idx = doc.blocks.findIndex(b => b.id === id)
+    if (idx === -1) return
+    if (direction === 'up' && idx === 0) return
+    if (direction === 'down' && idx === doc.blocks.length - 1) return
+    const target = direction === 'up' ? idx - 1 : idx + 1
+    const tmp = doc.blocks[idx]!
+    doc.blocks[idx] = doc.blocks[target]!
+    doc.blocks[target] = tmp
+    touchActive()
+  }
+
+  function updateBlock(id: string, data: Partial<ReportBlock>) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const idx = doc.blocks.findIndex(b => b.id === id)
+    if (idx === -1) return
+    doc.blocks[idx] = { ...doc.blocks[idx], ...data } as ReportBlock
+    touchActive()
+  }
+
+  // --- List helpers ---
+
+  function addListItem(blockId: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const block = doc.blocks.find(b => b.id === blockId)
+    if (!block || block.type !== 'list') return
+    block.items.push({ id: generateId(), text: '' })
+    touchActive()
+  }
+
+  function removeListItem(blockId: string, itemId: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const block = doc.blocks.find(b => b.id === blockId)
+    if (!block || block.type !== 'list') return
+    block.items = block.items.filter((i: ListItem) => i.id !== itemId)
+    touchActive()
+  }
+
+  function updateListItem(blockId: string, itemId: string, text: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const block = doc.blocks.find(b => b.id === blockId)
+    if (!block || block.type !== 'list') return
+    const item = block.items.find((i: ListItem) => i.id === itemId)
+    if (item) { item.text = text; touchActive() }
+  }
+
+  // --- Table helpers ---
+
+  function addTableRow(blockId: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const block = doc.blocks.find(b => b.id === blockId)
+    if (!block || block.type !== 'table') return
+    const newRow: TableRow = {
+      id: generateId(),
+      cells: block.headers.map(() => ({ text: '' })),
+    }
+    block.rows.push(newRow)
+    touchActive()
+  }
+
+  function removeTableRow(blockId: string, rowId: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const block = doc.blocks.find(b => b.id === blockId)
+    if (!block || block.type !== 'table') return
+    block.rows = block.rows.filter((r: TableRow) => r.id !== rowId)
+    touchActive()
+  }
+
+  function addTableColumn(blockId: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const block = doc.blocks.find(b => b.id === blockId)
+    if (!block || block.type !== 'table') return
+    block.headers.push('Стовпець ' + (block.headers.length + 1))
+    block.rows.forEach((r: TableRow) => r.cells.push({ text: '' }))
+    touchActive()
+  }
+
+  function removeTableColumn(blockId: string, colIndex: number) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const block = doc.blocks.find(b => b.id === blockId)
+    if (!block || block.type !== 'table') return
+    if (block.headers.length <= 1) return
+    block.headers.splice(colIndex, 1)
+    block.rows.forEach((r: TableRow) => r.cells.splice(colIndex, 1))
+    touchActive()
+  }
+
+  function getBlockIndex(blockId: string, type: ReportBlock['type']): number {
+    const doc = activeDocument.value
+    if (!doc) return 0
+    const filtered = doc.blocks.filter(b => b.type === type)
+    return filtered.findIndex(b => b.id === blockId) + 1
+  }
+
+  return {
+    documents,
+    activeDocumentId,
+    activeDocument,
+    createNewDocument,
+    duplicateDocument,
+    deleteDocument,
+    renameDocument,
+    setActiveDocument,
+    updateTitlePage,
+    updateIntro,
+    updateSettings,
+    addBlock,
+    removeBlock,
+    moveBlock,
+    updateBlock,
+    addListItem,
+    removeListItem,
+    updateListItem,
+    addTableRow,
+    removeTableRow,
+    addTableColumn,
+    removeTableColumn,
+    getBlockIndex,
+  }
+})
