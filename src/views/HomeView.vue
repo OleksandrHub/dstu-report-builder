@@ -163,6 +163,10 @@ function onUpdateBlock(id: string, data: Partial<ReportBlock>) {
                     `preview-${(block as TitleLineBlock).align}`,
                     { 'preview-bold': (block as TitleLineBlock).bold }
                   ]"
+                  :style="{
+                    paddingLeft: (block as TitleLineBlock).paddingLeft ? `${(block as TitleLineBlock).paddingLeft}cm` : undefined,
+                    paddingRight: (block as TitleLineBlock).paddingRight ? `${(block as TitleLineBlock).paddingRight}cm` : undefined,
+                  }"
                 >{{ resolveTitleVars((block as TitleLineBlock).text, doc.titlePage) }}</p>
               </template>
             </div>

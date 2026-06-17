@@ -78,6 +78,14 @@ export const useReportStore = defineStore('report', () => {
   for (const doc of rawDocs) {
     if (!doc.titleTemplate) {
       doc.titleTemplate = deepCloneTitleBlocks(DEFAULT_TITLE_TEMPLATE)
+    } else {
+      // Migrate: add paddingLeft/paddingRight to old titleLine blocks that lack them
+      for (const block of doc.titleTemplate) {
+        if (block.type === 'titleLine') {
+          if (block.paddingLeft === undefined) block.paddingLeft = 0
+          if (block.paddingRight === undefined) block.paddingRight = 0
+        }
+      }
     }
   }
 
@@ -372,7 +380,7 @@ export const useReportStore = defineStore('report', () => {
     if (!doc) return
     const newBlock: TitleBlock = type === 'titleSpacer'
       ? { id: generateId(), type: 'titleSpacer', flex: 1 }
-      : { id: generateId(), type: 'titleLine', text: 'Новий рядок', align: 'center', bold: false, spaceBefore: false }
+      : { id: generateId(), type: 'titleLine', text: 'Новий рядок', align: 'center', bold: false, spaceBefore: false, paddingLeft: 0, paddingRight: 0 }
 
     if (afterId) {
       const idx = doc.titleTemplate.findIndex(b => b.id === afterId)

@@ -86,6 +86,10 @@ function buildTitlePage(doc: ReportDocument, cfg: FontConfig): Paragraph[] {
         children: [baseRun(resolved, cfg, line.bold)],
         alignment: ALIGN_MAP[line.align] ?? AlignmentType.LEFT,
         spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+        indent: {
+          left: line.paddingLeft ? cmToTwip(line.paddingLeft) : undefined,
+          right: line.paddingRight ? cmToTwip(line.paddingRight) : undefined,
+        },
       }))
     }
   }

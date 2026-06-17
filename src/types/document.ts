@@ -117,6 +117,8 @@ export interface TitleLineBlock {
   align: TitleAlign
   bold: boolean
   spaceBefore: boolean   // add extra vertical space before this line
+  paddingLeft: number    // cm indent from left edge of content area
+  paddingRight: number   // cm indent from right edge
 }
 
 export interface TitleSpacerBlock {
@@ -189,22 +191,26 @@ function tid() {
   return Math.random().toString(36).slice(2)
 }
 
+function line(text: string, align: TitleAlign, bold = false, paddingLeft = 0, paddingRight = 0): TitleLineBlock {
+  return { id: tid(), type: 'titleLine', text, align, bold, spaceBefore: false, paddingLeft, paddingRight }
+}
+
 export const DEFAULT_TITLE_TEMPLATE: TitleBlock[] = [
-  { id: tid(), type: 'titleLine', text: '{{ministry}}', align: 'center', bold: false, spaceBefore: false },
-  { id: tid(), type: 'titleLine', text: '{{university}}', align: 'center', bold: false, spaceBefore: false },
-  { id: tid(), type: 'titleLine', text: '{{department}}', align: 'center', bold: false, spaceBefore: false },
+  line('{{ministry}}', 'center'),
+  line('{{university}}', 'center'),
+  line('{{department}}', 'center'),
   { id: tid(), type: 'titleSpacer', flex: 3 },
-  { id: tid(), type: 'titleLine', text: 'ЗВІТ', align: 'center', bold: true, spaceBefore: false },
-  { id: tid(), type: 'titleLine', text: 'про виконання {{workType}} №{{workNumber}}', align: 'center', bold: false, spaceBefore: false },
-  { id: tid(), type: 'titleLine', text: 'на тему: «{{topic}}»', align: 'center', bold: false, spaceBefore: false },
-  { id: tid(), type: 'titleLine', text: 'з дисципліни «{{discipline}}»', align: 'center', bold: false, spaceBefore: false },
+  line('ЗВІТ', 'center', true),
+  line('про виконання {{workType}} №{{workNumber}}', 'center'),
+  line('на тему: «{{topic}}»', 'center'),
+  line('з дисципліни «{{discipline}}»', 'center'),
   { id: tid(), type: 'titleSpacer', flex: 3 },
-  { id: tid(), type: 'titleLine', text: 'Виконав: Студент групи {{studentGroup}}', align: 'right', bold: false, spaceBefore: false },
-  { id: tid(), type: 'titleLine', text: '{{studentName}}', align: 'right', bold: false, spaceBefore: false },
-  { id: tid(), type: 'titleLine', text: 'Прийняв: {{teacherTitle}}', align: 'right', bold: false, spaceBefore: false },
-  { id: tid(), type: 'titleLine', text: '{{teacherName}}', align: 'right', bold: false, spaceBefore: false },
+  line('Виконав: Студент групи {{studentGroup}}', 'left', false, 9, 0),
+  line('{{studentName}}', 'left', false, 9, 0),
+  line('Прийняв: {{teacherTitle}}', 'left', false, 9, 0),
+  line('{{teacherName}}', 'left', false, 9, 0),
   { id: tid(), type: 'titleSpacer', flex: 3 },
-  { id: tid(), type: 'titleLine', text: '{{city}} – {{year}}', align: 'center', bold: false, spaceBefore: false },
+  line('{{city}} – {{year}}', 'center'),
 ]
 
 export const TITLE_TEMPLATES_STORAGE_KEY = 'dstu-title-templates'

@@ -758,6 +758,18 @@ h3.preview-heading { font-size: 1em; }
 
 .line-text-input { flex: 1; font-size: 12px; }
 
+.line-padding-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid var(--color-border);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+.line-padding-row label { white-space: nowrap; }
+
 .add-title-block-row { display: flex; gap: 6px; }
 
 /* ===== SCROLLBAR ===== */

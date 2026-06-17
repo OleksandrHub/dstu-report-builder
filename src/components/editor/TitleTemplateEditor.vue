@@ -109,7 +109,6 @@ function insertVar(blockId: string, v: string, currentText: string) {
         <template v-else>
           <div class="line-row">
             <div class="line-controls">
-              <!-- Align buttons -->
               <div class="align-btns">
                 <button
                   v-for="a in ['left','center','right']"
@@ -118,7 +117,6 @@ function insertVar(blockId: string, v: string, currentText: string) {
                   @click="store.updateTitleBlock(block.id, { align: a as 'left'|'center'|'right' })"
                 >{{ a === 'left' ? '⇤' : a === 'center' ? '⇔' : '⇥' }}</button>
               </div>
-              <!-- Bold toggle -->
               <button
                 :class="['bold-btn', { active: (block as TitleLineBlock).bold }]"
                 @click="store.updateTitleBlock(block.id, { bold: !(block as TitleLineBlock).bold })"
@@ -135,10 +133,28 @@ function insertVar(blockId: string, v: string, currentText: string) {
             <div class="block-actions">
               <button @click="store.moveTitleBlock(block.id, 'up')" title="Вгору">↑</button>
               <button @click="store.moveTitleBlock(block.id, 'down')" title="Вниз">↓</button>
-              <button @click="store.addTitleBlock('titleLine', block.id)" title="Додати рядок після">+L</button>
-              <button @click="store.addTitleBlock('titleSpacer', block.id)" title="Додати відступ після">+S</button>
+              <button @click="store.addTitleBlock('titleLine', block.id)" title="Рядок після">+L</button>
+              <button @click="store.addTitleBlock('titleSpacer', block.id)" title="Відступ після">+S</button>
               <button class="btn-danger" @click="store.removeTitleBlock(block.id)">✕</button>
             </div>
+          </div>
+
+          <!-- Padding controls row -->
+          <div class="line-padding-row">
+            <label>Відступ зліва (см):</label>
+            <input
+              type="number" min="0" max="20" step="0.5"
+              class="small-number-input"
+              :value="(block as TitleLineBlock).paddingLeft"
+              @input="store.updateTitleBlock(block.id, { paddingLeft: parseFloat(($event.target as HTMLInputElement).value) || 0 })"
+            />
+            <label>Відступ справа (см):</label>
+            <input
+              type="number" min="0" max="20" step="0.5"
+              class="small-number-input"
+              :value="(block as TitleLineBlock).paddingRight"
+              @input="store.updateTitleBlock(block.id, { paddingRight: parseFloat(($event.target as HTMLInputElement).value) || 0 })"
+            />
           </div>
         </template>
       </div>
