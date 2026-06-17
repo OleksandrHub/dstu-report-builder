@@ -23,6 +23,7 @@ export interface DocumentSettings {
   tablePrefix: string
   header: HeaderFooterConfig
   footer: HeaderFooterConfig
+  differentFirstPage: boolean // title page gets a separate (empty) header/footer
 }
 
 export interface TitlePageData {
@@ -101,6 +102,7 @@ export interface TableCell {
 export interface TableRow {
   id: string
   cells: TableCell[]
+  splitBefore?: boolean // start a manual "continuation table" before this row
 }
 
 export interface TableBlock {
@@ -199,6 +201,7 @@ export const DEFAULT_SETTINGS: DocumentSettings = {
   tablePrefix: 'Таблиця',
   header: { mode: 'none', text: '', align: 'right', fontSize: 12, fontFamily: 'Times New Roman' },
   footer: { mode: 'pageNumber', text: '', align: 'center', fontSize: 12, fontFamily: 'Times New Roman' },
+  differentFirstPage: true,
 }
 
 export const DEFAULT_TITLE_PAGE: TitlePageData = {

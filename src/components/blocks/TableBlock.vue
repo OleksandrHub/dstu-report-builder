@@ -45,9 +45,10 @@ function updateCell(rowId: string, colIdx: number, value: string) {
         class="block-input"
         :value="props.block.referenceText"
         @input="emit('update', { referenceText: ($event.target as HTMLInputElement).value })"
-        placeholder="наведено текст"
+        placeholder="Дані наведено у таблиці {no}."
       />
     </div>
+    <p class="block-hint">{no} — підставиться номер таблиці</p>
 
     <div class="block-field-row">
       <label>Підпис:</label>
@@ -99,24 +100,38 @@ function updateCell(rowId: string, colIdx: number, value: string) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in props.block.rows" :key="row.id">
-            <td v-for="(cell, ci) in row.cells" :key="ci">
-              <input
-                class="table-cell-input"
-                :value="cell.text"
-                @input="updateCell(row.id, ci, ($event.target as HTMLInputElement).value)"
-                placeholder="..."
-              />
-            </td>
-            <td class="row-action-cell">
-              <button
-                class="btn-icon btn-danger"
-                @click="store.removeTableRow(props.block.id, row.id)"
-                :disabled="props.block.rows.length <= 1"
-                title="Видалити рядок"
-              >✕</button>
-            </td>
-          </tr>
+          <template v-for="(row, ri) in props.block.rows" :key="row.id">
+            <tr v-if="row.splitBefore" class="split-marker-row">
+              <td :colspan="row.cells.length + 1" class="split-marker-cell">
+                ✂ Продовження таблиці з цього рядка
+              </td>
+            </tr>
+            <tr>
+              <td v-for="(cell, ci) in row.cells" :key="ci">
+                <input
+                  class="table-cell-input"
+                  :value="cell.text"
+                  @input="updateCell(row.id, ci, ($event.target as HTMLInputElement).value)"
+                  placeholder="..."
+                />
+              </td>
+              <td class="row-action-cell">
+                <button
+                  v-if="ri > 0"
+                  class="btn-icon"
+                  :class="{ active: row.splitBefore }"
+                  @click="store.toggleTableRowSplit(props.block.id, row.id)"
+                  :title="row.splitBefore ? 'Прибрати розрив таблиці' : 'Розірвати таблицю перед цим рядком'"
+                >✂</button>
+                <button
+                  class="btn-icon btn-danger"
+                  @click="store.removeTableRow(props.block.id, row.id)"
+                  :disabled="props.block.rows.length <= 1"
+                  title="Видалити рядок"
+                >✕</button>
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>

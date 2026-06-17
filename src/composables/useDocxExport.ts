@@ -82,6 +82,17 @@ const ALIGN_MAP: Record<string, typeof AlignmentType[keyof typeof AlignmentType]
   right: AlignmentType.RIGHT,
 }
 
+// Build the in-text reference sentence for a numbered object (code/image/table).
+// If the user's text contains the {no} placeholder, only substitute the number
+// (no auto prefix). Otherwise fall back to the legacy "<text> <prefix> <n>." format.
+function resolveReference(text: string | undefined, prefix: string, num: number): string {
+  if (!text) return ''
+  if (text.includes('{no}')) {
+    return text.replace(/\{no\}/g, String(num))
+  }
+  return `${text} ${prefix.toLowerCase()} ${num}.`
+}
+
 function buildTitlePage(doc: ReportDocument, cfg: FontConfig): Paragraph[] {
   const result: Paragraph[] = []
 
@@ -202,9 +213,7 @@ function buildBlock(
     const codeSize = ptToHalfPt(block.fontSize ?? 12)
     const codeSpacing = block.lineSpacing ?? 1.0
 
-    const refText = block.referenceText
-      ? `${block.referenceText} ${s.listingPrefix.toLowerCase()} ${counters.code}.`
-      : ''
+    const refText = resolveReference(block.referenceText, s.listingPrefix, counters.code)
 
     if (refText) {
       result.push(bodyParagraph([baseRun(refText, cfg)], cfg))
@@ -226,9 +235,7 @@ function buildBlock(
     counters.image++
     const result: (Paragraph | Table)[] = []
 
-    const refText = block.referenceText
-      ? `${block.referenceText} ${s.imagePrefix.toLowerCase()} ${counters.image}.`
-      : ''
+    const refText = resolveReference(block.referenceText, s.imagePrefix, counters.image)
 
     if (refText) {
       result.push(bodyParagraph([baseRun(refText, cfg)], cfg))
@@ -274,7 +281,9 @@ function buildBlock(
     const ROWS_PER_PAGE = 20 // split threshold
 
     const refText = block.referenceText
-      ? `У ${s.tablePrefix.toLowerCase()} ${counters.table} ${block.referenceText.toLowerCase()}.`
+      ? (block.referenceText.includes('{no}')
+          ? block.referenceText.replace(/\{no\}/g, String(counters.table))
+          : `У ${s.tablePrefix.toLowerCase()} ${counters.table} ${block.referenceText.toLowerCase()}.`)
       : ''
 
     if (refText) {
@@ -308,10 +317,24 @@ function buildBlock(
       ),
     })
 
-    // Split into chunks if large
+    // First split at manual breakpoints (rows flagged with splitBefore),
+    // then split each manual segment further if it exceeds the auto threshold.
+    const manualSegments: DocTableRow[][] = []
+    let current: DocTableRow[] = []
+    for (const row of block.rows) {
+      if (row.splitBefore && current.length > 0) {
+        manualSegments.push(current)
+        current = []
+      }
+      current.push(row)
+    }
+    if (current.length > 0) manualSegments.push(current)
+
     const chunks: DocTableRow[][] = []
-    for (let i = 0; i < block.rows.length; i += ROWS_PER_PAGE) {
-      chunks.push(block.rows.slice(i, i + ROWS_PER_PAGE))
+    for (const seg of manualSegments) {
+      for (let i = 0; i < seg.length; i += ROWS_PER_PAGE) {
+        chunks.push(seg.slice(i, i + ROWS_PER_PAGE))
+      }
     }
 
     chunks.forEach((chunk, ci) => {
@@ -422,14 +445,25 @@ async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
               bottom: cmToTwip(s.marginBottom),
             },
           },
-          // Title page gets its own (empty) header/footer so numbering starts on the body.
-          titlePage: true,
+          // When enabled, the title page gets its own (empty) header/footer
+          // so page numbering effectively starts on the body.
+          titlePage: s.differentFirstPage,
         },
         headers: header
-          ? { default: header, first: new Header({ children: [new Paragraph({ children: [] })] }) }
+          ? {
+              default: header,
+              ...(s.differentFirstPage
+                ? { first: new Header({ children: [new Paragraph({ children: [] })] }) }
+                : {}),
+            }
           : undefined,
         footers: footer
-          ? { default: footer, first: new Footer({ children: [new Paragraph({ children: [] })] }) }
+          ? {
+              default: footer,
+              ...(s.differentFirstPage
+                ? { first: new Footer({ children: [new Paragraph({ children: [] })] }) }
+                : {}),
+            }
           : undefined,
         children: [
           ...titleChildren,

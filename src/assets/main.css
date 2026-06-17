@@ -580,7 +580,9 @@ body {
   border-style: solid;
 }
 
-/* docx-preview library overrides */
+/* docx-preview library overrides.
+   IMPORTANT: do NOT reset padding/margin on section.docx — docx-preview encodes
+   page margins as the section's padding, so overriding them breaks the layout. */
 .docx-preview-root .docx-wrapper {
   background: transparent !important;
   padding: 0 !important;
@@ -591,8 +593,17 @@ body {
 }
 .docx-preview-root section.docx {
   box-shadow: 0 4px 24px rgba(0,0,0,0.5) !important;
-  margin: 0 !important;
+  margin: 0 auto !important;        /* center horizontally, keep vertical at 0 */
   box-sizing: border-box !important;
+  background: white !important;
+}
+/* Reset app-level typography so the document renders with Word's own styles. */
+.docx-preview-root .docx-wrapper > section.docx,
+.docx-preview-root .docx-wrapper > section.docx * {
+  color: #000;
+}
+.docx-preview-root p {
+  margin: 0;
 }
 
 /* A4 page */
@@ -946,6 +957,41 @@ h3.preview-heading { font-size: 1em; }
 .line-padding-row label { white-space: nowrap; }
 
 .add-title-block-row { display: flex; gap: 6px; }
+
+/* Reference hint under block inputs */
+.block-hint {
+  margin: 2px 0 6px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+}
+
+/* Settings checkbox row */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text);
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+.checkbox-row input { cursor: pointer; }
+
+/* Manual table-split marker */
+.split-marker-row .split-marker-cell {
+  background: rgba(120, 170, 255, 0.12);
+  color: var(--color-accent2);
+  font-size: 11px;
+  text-align: center;
+  padding: 2px 6px;
+  border: 1px dashed var(--color-accent2);
+}
+.btn-icon.active {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}
 
 /* ===== SCROLLBAR ===== */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

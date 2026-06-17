@@ -112,6 +112,16 @@ const hfModes = [
       <input class="field-input" :value="s.tablePrefix" @input="update('tablePrefix', ($event.target as HTMLInputElement).value)" />
     </div>
 
+    <h4 class="subsection-title">Колонтитули</h4>
+    <label class="checkbox-row">
+      <input
+        type="checkbox"
+        :checked="s.differentFirstPage"
+        @change="store.updateSettings({ differentFirstPage: ($event.target as HTMLInputElement).checked })"
+      />
+      <span>Інша перша сторінка (титулка без колонтитула)</span>
+    </label>
+
     <h4 class="subsection-title">Верхній колонтитул</h4>
     <div class="field-group">
       <label>Вміст</label>

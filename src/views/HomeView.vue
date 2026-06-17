@@ -53,9 +53,17 @@ async function renderPreview() {
       inWrapper: true,
       ignoreWidth: false,
       ignoreHeight: false,
+      ignoreFonts: false,
       breakPages: true,
+      ignoreLastRenderedPageBreak: false,
       experimental: true,
+      trimXmlDeclaration: true,
       useBase64URL: true,
+      renderHeaders: true,
+      renderFooters: true,
+      renderFootnotes: true,
+      renderEndnotes: true,
+      renderChanges: false,
     })
   } catch (e) {
     previewError.value = (e as Error)?.message ?? 'Помилка рендеру'

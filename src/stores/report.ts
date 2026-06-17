@@ -124,6 +124,25 @@ export const useReportStore = defineStore('report', () => {
     if (doc.settings && !doc.settings.footer) {
       doc.settings.footer = { mode: 'pageNumber', text: '', align: 'center', fontSize: 12, fontFamily: doc.settings.fontFamily || 'Times New Roman' }
     }
+    if (doc.settings && doc.settings.differentFirstPage === undefined) {
+      doc.settings.differentFirstPage = true
+    }
+  }
+
+  // Migrate: append {no} placeholder to legacy referenceText (so number isn't auto-doubled)
+  for (const doc of rawDocs) {
+    if (!doc.blocks) continue
+    for (const b of doc.blocks) {
+      if ((b.type === 'code' || b.type === 'image' || b.type === 'table') && b.referenceText && !b.referenceText.includes('{no}')) {
+        const t = b.referenceText.trim()
+        if (b.type === 'table') {
+          // old table format auto-wrapped "У таблиці N <text>." — convert to explicit sentence
+          b.referenceText = `У таблиці {no} ${t.toLowerCase()}.`
+        } else {
+          b.referenceText = `${t.replace(/\.$/, '')} {no}.`
+        }
+      }
+    }
   }
 
   // Migrate: convert old intro field into paragraph blocks prepended to blocks[]
@@ -270,7 +289,7 @@ export const useReportStore = defineStore('report', () => {
         caption: 'Назва лістингу',
         code: '// Ваш код тут\n',
         language: 'typescript',
-        referenceText: 'Код програми подано у лістингу',
+        referenceText: 'Код програми подано у лістингу {no}.',
       }
     } else if (type === 'image') {
       block = {
@@ -278,7 +297,7 @@ export const useReportStore = defineStore('report', () => {
         type: 'image',
         src: '',
         caption: 'Назва рисунка',
-        referenceText: 'Результат роботи програми наведено на рисунку',
+        referenceText: 'Результат роботи програми наведено на рисунку {no}.',
       }
     } else {
       block = {
@@ -289,7 +308,7 @@ export const useReportStore = defineStore('report', () => {
         rows: [
           { id: generateId(), cells: [{ text: '' }, { text: '' }] },
         ],
-        referenceText: 'Дані наведено у таблиці',
+        referenceText: 'Дані наведено у таблиці {no}.',
       }
     }
 
@@ -410,6 +429,17 @@ export const useReportStore = defineStore('report', () => {
     if (!block || block.type !== 'table') return
     block.headers.push('Стовпець ' + (block.headers.length + 1))
     block.rows.forEach((r: TableRow) => r.cells.push({ text: '' }))
+    touchActive()
+  }
+
+  function toggleTableRowSplit(blockId: string, rowId: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const block = doc.blocks.find(b => b.id === blockId)
+    if (!block || block.type !== 'table') return
+    const row = block.rows.find((r: TableRow) => r.id === rowId)
+    if (!row) return
+    row.splitBefore = !row.splitBefore
     touchActive()
   }
 
@@ -574,6 +604,7 @@ export const useReportStore = defineStore('report', () => {
     removeTableRow,
     addTableColumn,
     removeTableColumn,
+    toggleTableRowSplit,
     getBlockIndex,
     addTitleBlock,
     removeTitleBlock,

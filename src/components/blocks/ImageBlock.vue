@@ -40,9 +40,10 @@ function onFileChange(e: Event) {
         class="block-input"
         :value="props.block.referenceText"
         @input="emit('update', { referenceText: ($event.target as HTMLInputElement).value })"
-        placeholder="Результат роботи програми наведено на рисунку"
+        placeholder="Результат роботи програми наведено на рисунку {no}."
       />
     </div>
+    <p class="block-hint">{no} — підставиться номер рисунка</p>
 
     <div class="block-field-row">
       <label>Підпис:</label>

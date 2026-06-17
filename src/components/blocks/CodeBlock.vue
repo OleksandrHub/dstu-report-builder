@@ -29,9 +29,10 @@ const languages = ['typescript', 'javascript', 'python', 'java', 'c', 'cpp', 'cs
         class="block-input"
         :value="props.block.referenceText"
         @input="emit('update', { referenceText: ($event.target as HTMLInputElement).value })"
-        placeholder="Код програми подано у лістингу"
+        placeholder="Код програми подано у лістингу {no}."
       />
     </div>
+    <p class="block-hint">{no} — підставиться номер лістингу</p>
 
     <div class="block-field-row">
       <label>Підпис лістингу:</label>
