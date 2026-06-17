@@ -11,16 +11,18 @@ import CodeBlockEditor from '../components/blocks/CodeBlock.vue'
 import ImageBlockEditor from '../components/blocks/ImageBlock.vue'
 import TableBlockEditor from '../components/blocks/TableBlock.vue'
 import TitlePageEditor from '../components/editor/TitlePageEditor.vue'
+import TitleTemplateEditor from '../components/editor/TitleTemplateEditor.vue'
 import IntroEditor from '../components/editor/IntroEditor.vue'
 import SettingsEditor from '../components/editor/SettingsEditor.vue'
 
-import type { ReportBlock } from '../types/document'
+import type { ReportBlock, TitleLineBlock, TitleSpacerBlock } from '../types/document'
+import { resolveTitleVars } from '../types/document'
 
 const store = useReportStore()
 const { doc, settings, getBlockIndex, formatListItem, pageStyles, paragraphStyles } = useReport()
 const { exportToDocx } = useDocxExport()
 
-type LeftTab = 'titlepage' | 'intro' | 'blocks' | 'settings'
+type LeftTab = 'titlepage' | 'titleblocks' | 'intro' | 'blocks' | 'settings'
 const leftTab = ref<LeftTab>('titlepage')
 
 async function handleExport() {
@@ -31,26 +33,6 @@ async function handleExport() {
 function onUpdateBlock(id: string, data: Partial<ReportBlock>) {
   store.updateBlock(id, data)
 }
-
-const blockCounters = computed(() => {
-  const c = { image: 0, code: 0, table: 0 }
-  if (!doc.value) return c
-  for (const b of doc.value.blocks) {
-    if (b.type === 'image') c.image++
-    else if (b.type === 'code') c.code++
-    else if (b.type === 'table') c.table++
-  }
-  return c
-})
-
-// pt to px for preview
-function ptToPx(pt: number) {
-  return pt * (96 / 72)
-}
-
-const previewFontSize = computed(() =>
-  settings.value ? `${ptToPx(settings.value.fontSize)}px` : '18.67px'
-)
 </script>
 
 <template>
@@ -66,7 +48,8 @@ const previewFontSize = computed(() =>
           />
         </div>
         <div class="tab-bar">
-          <button :class="['tab', { active: leftTab === 'titlepage' }]" @click="leftTab = 'titlepage'">Титулка</button>
+          <button :class="['tab', { active: leftTab === 'titlepage' }]" @click="leftTab = 'titlepage'">Дані</button>
+          <button :class="['tab', { active: leftTab === 'titleblocks' }]" @click="leftTab = 'titleblocks'">Макет</button>
           <button :class="['tab', { active: leftTab === 'intro' }]" @click="leftTab = 'intro'">Вступ</button>
           <button :class="['tab', { active: leftTab === 'blocks' }]" @click="leftTab = 'blocks'">Блоки</button>
           <button :class="['tab', { active: leftTab === 'settings' }]" @click="leftTab = 'settings'">Стиль</button>
@@ -75,6 +58,7 @@ const previewFontSize = computed(() =>
 
       <div class="panel-body">
         <TitlePageEditor v-if="leftTab === 'titlepage'" />
+        <TitleTemplateEditor v-else-if="leftTab === 'titleblocks'" />
         <IntroEditor v-else-if="leftTab === 'intro'" />
         <SettingsEditor v-else-if="leftTab === 'settings'" />
 
@@ -158,122 +142,127 @@ const previewFontSize = computed(() =>
       </div>
     </aside>
 
-    <!-- RIGHT: A4 Preview -->
+    <!-- RIGHT: A4 Preview — page per page -->
     <main class="preview-panel">
       <div class="preview-scroll">
-        <div v-if="doc" class="a4-page" :style="pageStyles">
-          <!-- Title page preview -->
-          <div class="preview-title-page">
-            <p class="preview-center">{{ doc.titlePage.ministry }}</p>
-            <p class="preview-center">{{ doc.titlePage.university }}</p>
-            <p class="preview-center">{{ doc.titlePage.department }}</p>
-            <div class="preview-spacer" />
-            <p class="preview-center preview-bold preview-large">ЗВІТ</p>
-            <p class="preview-center">про виконання {{ doc.titlePage.workType }} №{{ doc.titlePage.workNumber }}</p>
-            <p class="preview-center">на тему: «{{ doc.titlePage.topic }}»</p>
-            <p class="preview-center">з дисципліни «{{ doc.titlePage.discipline }}»</p>
-            <div class="preview-spacer" />
-            <p class="preview-right">Виконав: Студент групи {{ doc.titlePage.studentGroup }}</p>
-            <p class="preview-right">{{ doc.titlePage.studentName }}</p>
-            <p class="preview-right">Прийняв: {{ doc.titlePage.teacherTitle }}</p>
-            <p class="preview-right">{{ doc.titlePage.teacherName }}</p>
-            <div class="preview-spacer" />
-            <p class="preview-center">{{ doc.titlePage.city }} – {{ doc.titlePage.year }}</p>
+        <template v-if="doc">
+
+          <!-- PAGE 1: Title page -->
+          <div class="a4-page" :style="pageStyles">
+            <div class="preview-title-page">
+              <template v-for="block in doc.titleTemplate" :key="block.id">
+                <div
+                  v-if="block.type === 'titleSpacer'"
+                  class="preview-title-spacer"
+                  :style="{ flex: (block as TitleSpacerBlock).flex }"
+                />
+                <p
+                  v-else
+                  :class="[
+                    'preview-title-line',
+                    `preview-${(block as TitleLineBlock).align}`,
+                    { 'preview-bold': (block as TitleLineBlock).bold }
+                  ]"
+                >{{ resolveTitleVars((block as TitleLineBlock).text, doc.titlePage) }}</p>
+              </template>
+            </div>
           </div>
 
-          <div class="preview-page-break" />
-
-          <!-- Intro preview -->
-          <div class="preview-intro">
-            <p><strong>Тема:</strong> {{ doc.intro.topic }}.</p>
-            <p><strong>Мета:</strong> {{ doc.intro.goal }}.</p>
-            <p>Варіант №{{ doc.intro.variant }}</p>
-            <p><strong>Виконання роботи:</strong></p>
-          </div>
-
-          <!-- Body blocks preview -->
-          <div
-            v-for="block in doc.blocks"
-            :key="block.id"
-            class="preview-block"
-          >
-            <!-- Paragraph -->
-            <p v-if="block.type === 'paragraph'" class="preview-paragraph" :style="paragraphStyles">
-              {{ block.text }}
-            </p>
-
-            <!-- Heading -->
-            <component
-              v-else-if="block.type === 'heading'"
-              :is="'h' + block.level"
-              class="preview-heading"
-            >{{ block.text }}</component>
-
-            <!-- List -->
-            <div v-else-if="block.type === 'list'">
-              <p v-if="block.introText" class="preview-paragraph" :style="paragraphStyles">
-                {{ block.introText }}
-              </p>
-              <ol v-if="block.ordered" class="preview-list">
-                <li v-for="(item, idx) in block.items" :key="item.id">
-                  {{ formatListItem(item.text, true, idx === block.items.length - 1) }}
-                </li>
-              </ol>
-              <ul v-else class="preview-list preview-list-bullet">
-                <li v-for="(item, idx) in block.items" :key="item.id">
-                  {{ formatListItem(item.text, false, idx === block.items.length - 1) }}
-                </li>
-              </ul>
+          <!-- PAGE 2+: Intro + body -->
+          <div class="a4-page" :style="pageStyles">
+            <!-- Intro -->
+            <div class="preview-intro">
+              <p><strong>Тема:</strong> {{ doc.intro.topic }}.</p>
+              <p><strong>Мета:</strong> {{ doc.intro.goal }}.</p>
+              <p>Варіант №{{ doc.intro.variant }}</p>
+              <p><strong>Виконання роботи:</strong></p>
             </div>
 
-            <!-- Code -->
-            <div v-else-if="block.type === 'code'">
-              <p v-if="block.referenceText" class="preview-paragraph" :style="paragraphStyles">
-                {{ block.referenceText }} {{ doc.settings.listingPrefix.toLowerCase() }} {{ getBlockIndex(block.id, 'code') }}.
+            <!-- Body blocks preview -->
+            <div
+              v-for="block in doc.blocks"
+              :key="block.id"
+              class="preview-block"
+            >
+              <!-- Paragraph -->
+              <p v-if="block.type === 'paragraph'" class="preview-paragraph" :style="paragraphStyles">
+                {{ block.text }}
               </p>
-              <p class="preview-caption preview-caption-top">
-                {{ doc.settings.listingPrefix }} {{ getBlockIndex(block.id, 'code') }} – {{ block.caption }}
-              </p>
-              <pre class="preview-code">{{ block.code }}</pre>
-            </div>
 
-            <!-- Image -->
-            <div v-else-if="block.type === 'image'">
-              <p v-if="block.referenceText" class="preview-paragraph" :style="paragraphStyles">
-                {{ block.referenceText }} {{ doc.settings.imagePrefix.toLowerCase() }} {{ getBlockIndex(block.id, 'image') }}.
-              </p>
-              <div class="preview-image-wrap">
-                <img v-if="block.src" :src="block.src" class="preview-image" :alt="block.caption" />
-                <div v-else class="preview-image-placeholder">[Зображення не завантажено]</div>
+              <!-- Heading -->
+              <component
+                v-else-if="block.type === 'heading'"
+                :is="'h' + block.level"
+                class="preview-heading"
+              >{{ block.text }}</component>
+
+              <!-- List -->
+              <div v-else-if="block.type === 'list'">
+                <p v-if="block.introText" class="preview-paragraph" :style="paragraphStyles">
+                  {{ block.introText }}
+                </p>
+                <ol v-if="block.ordered" class="preview-list">
+                  <li v-for="(item, idx) in block.items" :key="item.id">
+                    {{ formatListItem(item.text, true, idx === block.items.length - 1) }}
+                  </li>
+                </ol>
+                <ul v-else class="preview-list preview-list-bullet">
+                  <li v-for="(item, idx) in block.items" :key="item.id">
+                    {{ formatListItem(item.text, false, idx === block.items.length - 1) }}
+                  </li>
+                </ul>
               </div>
-              <p class="preview-caption preview-caption-bottom preview-center">
-                {{ doc.settings.imagePrefix }} {{ getBlockIndex(block.id, 'image') }} – {{ block.caption }}
-              </p>
-            </div>
 
-            <!-- Table -->
-            <div v-else-if="block.type === 'table'">
-              <p v-if="block.referenceText" class="preview-paragraph" :style="paragraphStyles">
-                У {{ doc.settings.tablePrefix.toLowerCase() }} {{ getBlockIndex(block.id, 'table') }} {{ block.referenceText }}.
-              </p>
-              <p class="preview-caption preview-caption-top">
-                {{ doc.settings.tablePrefix }} {{ getBlockIndex(block.id, 'table') }} – {{ block.caption }}
-              </p>
-              <table class="preview-table">
-                <thead>
-                  <tr>
-                    <th v-for="(h, i) in block.headers" :key="i">{{ h }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row in block.rows" :key="row.id">
-                    <td v-for="(cell, i) in row.cells" :key="i">{{ cell.text }}</td>
-                  </tr>
-                </tbody>
-              </table>
+              <!-- Code -->
+              <div v-else-if="block.type === 'code'">
+                <p v-if="block.referenceText" class="preview-paragraph" :style="paragraphStyles">
+                  {{ block.referenceText }} {{ doc.settings.listingPrefix.toLowerCase() }} {{ getBlockIndex(block.id, 'code') }}.
+                </p>
+                <p class="preview-caption preview-caption-top">
+                  {{ doc.settings.listingPrefix }} {{ getBlockIndex(block.id, 'code') }} – {{ block.caption }}
+                </p>
+                <pre class="preview-code">{{ block.code }}</pre>
+              </div>
+
+              <!-- Image -->
+              <div v-else-if="block.type === 'image'">
+                <p v-if="block.referenceText" class="preview-paragraph" :style="paragraphStyles">
+                  {{ block.referenceText }} {{ doc.settings.imagePrefix.toLowerCase() }} {{ getBlockIndex(block.id, 'image') }}.
+                </p>
+                <div class="preview-image-wrap">
+                  <img v-if="block.src" :src="block.src" class="preview-image" :alt="block.caption" />
+                  <div v-else class="preview-image-placeholder">[Зображення не завантажено]</div>
+                </div>
+                <p class="preview-caption preview-caption-bottom preview-center">
+                  {{ doc.settings.imagePrefix }} {{ getBlockIndex(block.id, 'image') }} – {{ block.caption }}
+                </p>
+              </div>
+
+              <!-- Table -->
+              <div v-else-if="block.type === 'table'">
+                <p v-if="block.referenceText" class="preview-paragraph" :style="paragraphStyles">
+                  У {{ doc.settings.tablePrefix.toLowerCase() }} {{ getBlockIndex(block.id, 'table') }} {{ block.referenceText }}.
+                </p>
+                <p class="preview-caption preview-caption-top">
+                  {{ doc.settings.tablePrefix }} {{ getBlockIndex(block.id, 'table') }} – {{ block.caption }}
+                </p>
+                <table class="preview-table">
+                  <thead>
+                    <tr>
+                      <th v-for="(h, i) in block.headers" :key="i">{{ h }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="row in block.rows" :key="row.id">
+                      <td v-for="(cell, i) in row.cells" :key="i">{{ cell.text }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
+
+        </template>
       </div>
     </main>
   </div>

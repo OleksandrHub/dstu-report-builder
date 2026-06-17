@@ -106,12 +106,44 @@ export type ReportBlock =
   | ImageBlock
   | TableBlock
 
+// ===== Title page block system =====
+
+export type TitleAlign = 'left' | 'center' | 'right'
+
+export interface TitleLineBlock {
+  id: string
+  type: 'titleLine'
+  text: string           // supports {{variables}}
+  align: TitleAlign
+  bold: boolean
+  spaceBefore: boolean   // add extra vertical space before this line
+}
+
+export interface TitleSpacerBlock {
+  id: string
+  type: 'titleSpacer'
+  flex: number           // how much vertical space to take (1 = normal, 2 = double)
+}
+
+export type TitleBlock = TitleLineBlock | TitleSpacerBlock
+
+export interface TitlePageTemplate {
+  id: string
+  name: string
+  blocks: TitleBlock[]
+}
+
+// Variables available in title templates: {{ministry}}, {{university}}, {{department}},
+// {{workType}}, {{workNumber}}, {{topic}}, {{discipline}},
+// {{studentGroup}}, {{studentName}}, {{teacherTitle}}, {{teacherName}}, {{city}}, {{year}}
+
 export interface ReportDocument {
   id: string
   name: string
   createdAt: string
   updatedAt: string
   titlePage: TitlePageData
+  titleTemplate: TitleBlock[]   // the active title layout
   intro: WorkIntro
   settings: DocumentSettings
   blocks: ReportBlock[]
@@ -123,7 +155,7 @@ export const DEFAULT_SETTINGS: DocumentSettings = {
   lineSpacing: 1.5,
   paragraphIndent: 1.25,
   marginLeft: 3.0,
-  marginRight: 1.0,
+  marginRight: 1.5,
   marginTop: 2.0,
   marginBottom: 2.0,
   imagePrefix: 'Рисунок',
@@ -138,11 +170,11 @@ export const DEFAULT_TITLE_PAGE: TitlePageData = {
   workType: 'лабораторної роботи',
   workNumber: '1',
   topic: 'Тема роботи',
-  discipline: 'Крос-платформне програмування',
-  studentGroup: 'СН-21',
+  discipline: 'Дисципліна',
+  studentGroup: 'ХХ-11',
   studentName: 'Прізвище І. П.',
   teacherTitle: 'PhD',
-  teacherName: 'Палка О. В.',
+  teacherName: 'Прізвище І. П.',
   city: 'Тернопіль',
   year: new Date().getFullYear().toString(),
 }
@@ -151,4 +183,45 @@ export const DEFAULT_INTRO: WorkIntro = {
   topic: 'Тема роботи',
   goal: 'Мета роботи',
   variant: '1',
+}
+
+function tid() {
+  return Math.random().toString(36).slice(2)
+}
+
+export const DEFAULT_TITLE_TEMPLATE: TitleBlock[] = [
+  { id: tid(), type: 'titleLine', text: '{{ministry}}', align: 'center', bold: false, spaceBefore: false },
+  { id: tid(), type: 'titleLine', text: '{{university}}', align: 'center', bold: false, spaceBefore: false },
+  { id: tid(), type: 'titleLine', text: '{{department}}', align: 'center', bold: false, spaceBefore: false },
+  { id: tid(), type: 'titleSpacer', flex: 3 },
+  { id: tid(), type: 'titleLine', text: 'ЗВІТ', align: 'center', bold: true, spaceBefore: false },
+  { id: tid(), type: 'titleLine', text: 'про виконання {{workType}} №{{workNumber}}', align: 'center', bold: false, spaceBefore: false },
+  { id: tid(), type: 'titleLine', text: 'на тему: «{{topic}}»', align: 'center', bold: false, spaceBefore: false },
+  { id: tid(), type: 'titleLine', text: 'з дисципліни «{{discipline}}»', align: 'center', bold: false, spaceBefore: false },
+  { id: tid(), type: 'titleSpacer', flex: 3 },
+  { id: tid(), type: 'titleLine', text: 'Виконав: Студент групи {{studentGroup}}', align: 'right', bold: false, spaceBefore: false },
+  { id: tid(), type: 'titleLine', text: '{{studentName}}', align: 'right', bold: false, spaceBefore: false },
+  { id: tid(), type: 'titleLine', text: 'Прийняв: {{teacherTitle}}', align: 'right', bold: false, spaceBefore: false },
+  { id: tid(), type: 'titleLine', text: '{{teacherName}}', align: 'right', bold: false, spaceBefore: false },
+  { id: tid(), type: 'titleSpacer', flex: 3 },
+  { id: tid(), type: 'titleLine', text: '{{city}} – {{year}}', align: 'center', bold: false, spaceBefore: false },
+]
+
+export const TITLE_TEMPLATES_STORAGE_KEY = 'dstu-title-templates'
+
+export function resolveTitleVars(text: string, data: TitlePageData): string {
+  return text
+    .replace(/\{\{ministry\}\}/g, data.ministry)
+    .replace(/\{\{university\}\}/g, data.university)
+    .replace(/\{\{department\}\}/g, data.department)
+    .replace(/\{\{workType\}\}/g, data.workType)
+    .replace(/\{\{workNumber\}\}/g, data.workNumber)
+    .replace(/\{\{topic\}\}/g, data.topic)
+    .replace(/\{\{discipline\}\}/g, data.discipline)
+    .replace(/\{\{studentGroup\}\}/g, data.studentGroup)
+    .replace(/\{\{studentName\}\}/g, data.studentName)
+    .replace(/\{\{teacherTitle\}\}/g, data.teacherTitle)
+    .replace(/\{\{teacherName\}\}/g, data.teacherName)
+    .replace(/\{\{city\}\}/g, data.city)
+    .replace(/\{\{year\}\}/g, data.year)
 }

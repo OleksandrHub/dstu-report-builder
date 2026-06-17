@@ -14,7 +14,8 @@ import {
   convertInchesToTwip,
   convertMillimetersToTwip,
 } from 'docx'
-import type { ReportDocument, ReportBlock, ListItem } from '../types/document'
+import type { ReportDocument, ReportBlock, ListItem, TitleLineBlock, TitleSpacerBlock } from '../types/document'
+import { resolveTitleVars } from '../types/document'
 
 const CM_TO_EMU = 914400 / 2.54
 
@@ -60,45 +61,36 @@ function captionParagraph(text: string, cfg: FontConfig, align: typeof Alignment
   })
 }
 
+const ALIGN_MAP: Record<string, typeof AlignmentType[keyof typeof AlignmentType]> = {
+  left: AlignmentType.LEFT,
+  center: AlignmentType.CENTER,
+  right: AlignmentType.RIGHT,
+}
+
 function buildTitlePage(doc: ReportDocument, cfg: FontConfig): Paragraph[] {
-  const { titlePage: t } = doc
-  const center = AlignmentType.CENTER
-  const right = AlignmentType.RIGHT
+  const result: Paragraph[] = []
 
-  const centered = (text: string, bold = false) =>
-    new Paragraph({
-      children: [baseRun(text, cfg, bold)],
-      alignment: center,
-      spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
-    })
+  for (const block of doc.titleTemplate) {
+    if (block.type === 'titleSpacer') {
+      const spacer = block as TitleSpacerBlock
+      for (let i = 0; i < spacer.flex; i++) {
+        result.push(new Paragraph({
+          children: [new TextRun('')],
+          spacing: { before: 120, after: 120 },
+        }))
+      }
+    } else {
+      const line = block as TitleLineBlock
+      const resolved = resolveTitleVars(line.text, doc.titlePage)
+      result.push(new Paragraph({
+        children: [baseRun(resolved, cfg, line.bold)],
+        alignment: ALIGN_MAP[line.align] ?? AlignmentType.LEFT,
+        spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+      }))
+    }
+  }
 
-  const rightAligned = (text: string) =>
-    new Paragraph({
-      children: [baseRun(text, cfg)],
-      alignment: right,
-      spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
-    })
-
-  const blank = () =>
-    new Paragraph({ children: [new TextRun('')], spacing: { before: 200, after: 200 } })
-
-  return [
-    centered(t.ministry),
-    centered(t.university),
-    centered(t.department),
-    blank(), blank(), blank(), blank(),
-    centered('ЗВІТ', true),
-    centered(`про виконання ${t.workType} №${t.workNumber}`),
-    centered(`на тему: «${t.topic}»`),
-    centered(`з дисципліни «${t.discipline}»`),
-    blank(), blank(), blank(), blank(),
-    rightAligned(`Виконав: Студент групи ${t.studentGroup}`),
-    rightAligned(t.studentName),
-    rightAligned(`Прийняв: ${t.teacherTitle}`),
-    rightAligned(t.teacherName),
-    blank(), blank(), blank(), blank(),
-    centered(`${t.city} – ${t.year}`),
-  ]
+  return result
 }
 
 function buildIntro(doc: ReportDocument, cfg: FontConfig): Paragraph[] {
@@ -362,6 +354,16 @@ export function useDocxExport() {
     }
 
     const docxDoc = new Document({
+      styles: {
+        default: {
+          document: {
+            run: {
+              font: cfg.name,
+              size: cfg.size,
+            },
+          },
+        },
+      },
       sections: [
         {
           properties: {

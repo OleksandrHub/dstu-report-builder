@@ -8,11 +8,15 @@ import type {
   WorkIntro,
   ListItem,
   TableRow,
+  TitleBlock,
+  TitlePageTemplate,
 } from '../types/document'
 import {
   DEFAULT_SETTINGS,
   DEFAULT_TITLE_PAGE,
   DEFAULT_INTRO,
+  DEFAULT_TITLE_TEMPLATE,
+  TITLE_TEMPLATES_STORAGE_KEY,
 } from '../types/document'
 
 const STORAGE_KEY = 'dstu-report-builder-documents'
@@ -22,6 +26,10 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
 }
 
+function deepCloneTitleBlocks(blocks: TitleBlock[]): TitleBlock[] {
+  return JSON.parse(JSON.stringify(blocks)) as TitleBlock[]
+}
+
 function createDocument(name: string): ReportDocument {
   return {
     id: generateId(),
@@ -29,10 +37,25 @@ function createDocument(name: string): ReportDocument {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     titlePage: { ...DEFAULT_TITLE_PAGE, year: new Date().getFullYear().toString() },
+    titleTemplate: deepCloneTitleBlocks(DEFAULT_TITLE_TEMPLATE),
     intro: { ...DEFAULT_INTRO },
     settings: { ...DEFAULT_SETTINGS },
     blocks: [],
   }
+}
+
+function loadTemplatesFromStorage(): TitlePageTemplate[] {
+  try {
+    const raw = localStorage.getItem(TITLE_TEMPLATES_STORAGE_KEY)
+    if (!raw) return []
+    return JSON.parse(raw) as TitlePageTemplate[]
+  } catch {
+    return []
+  }
+}
+
+function saveTemplatesToStorage(templates: TitlePageTemplate[]) {
+  localStorage.setItem(TITLE_TEMPLATES_STORAGE_KEY, JSON.stringify(templates))
 }
 
 function loadFromStorage(): ReportDocument[] {
@@ -50,8 +73,17 @@ function saveToStorage(docs: ReportDocument[]) {
 }
 
 export const useReportStore = defineStore('report', () => {
-  const documents = ref<ReportDocument[]>(loadFromStorage())
+  const rawDocs = loadFromStorage()
+  // Migrate: add titleTemplate to old documents that don't have it
+  for (const doc of rawDocs) {
+    if (!doc.titleTemplate) {
+      doc.titleTemplate = deepCloneTitleBlocks(DEFAULT_TITLE_TEMPLATE)
+    }
+  }
+
+  const documents = ref<ReportDocument[]>(rawDocs)
   const activeDocumentId = ref<string | null>(localStorage.getItem(ACTIVE_DOC_KEY))
+  const titleTemplates = ref<TitlePageTemplate[]>(loadTemplatesFromStorage())
 
   if (documents.value.length === 0) {
     const first = createDocument('Лабораторна робота №1')
@@ -62,6 +94,8 @@ export const useReportStore = defineStore('report', () => {
   if (activeDocumentId.value && !documents.value.find(d => d.id === activeDocumentId.value)) {
     activeDocumentId.value = documents.value[0]?.id ?? null
   }
+
+  watch(titleTemplates, (t) => saveTemplatesToStorage(t), { deep: true })
 
   const activeDocument = computed<ReportDocument | null>(() =>
     documents.value.find(d => d.id === activeDocumentId.value) ?? null
@@ -331,10 +365,100 @@ export const useReportStore = defineStore('report', () => {
     return filtered.findIndex(b => b.id === blockId) + 1
   }
 
+  // --- Title template (per-document blocks) ---
+
+  function addTitleBlock(type: TitleBlock['type'], afterId?: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const newBlock: TitleBlock = type === 'titleSpacer'
+      ? { id: generateId(), type: 'titleSpacer', flex: 1 }
+      : { id: generateId(), type: 'titleLine', text: 'Новий рядок', align: 'center', bold: false, spaceBefore: false }
+
+    if (afterId) {
+      const idx = doc.titleTemplate.findIndex(b => b.id === afterId)
+      if (idx !== -1) {
+        doc.titleTemplate.splice(idx + 1, 0, newBlock)
+        touchActive()
+        return
+      }
+    }
+    doc.titleTemplate.push(newBlock)
+    touchActive()
+  }
+
+  function removeTitleBlock(id: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    doc.titleTemplate = doc.titleTemplate.filter(b => b.id !== id)
+    touchActive()
+  }
+
+  function moveTitleBlock(id: string, direction: 'up' | 'down') {
+    const doc = activeDocument.value
+    if (!doc) return
+    const idx = doc.titleTemplate.findIndex(b => b.id === id)
+    if (idx === -1) return
+    if (direction === 'up' && idx === 0) return
+    if (direction === 'down' && idx === doc.titleTemplate.length - 1) return
+    const target = direction === 'up' ? idx - 1 : idx + 1
+    const tmp = doc.titleTemplate[idx]!
+    doc.titleTemplate[idx] = doc.titleTemplate[target]!
+    doc.titleTemplate[target] = tmp
+    touchActive()
+  }
+
+  function updateTitleBlock(id: string, data: Partial<TitleBlock>) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const idx = doc.titleTemplate.findIndex(b => b.id === id)
+    if (idx === -1) return
+    doc.titleTemplate[idx] = { ...doc.titleTemplate[idx], ...data } as TitleBlock
+    touchActive()
+  }
+
+  function resetTitleTemplate() {
+    const doc = activeDocument.value
+    if (!doc) return
+    doc.titleTemplate = deepCloneTitleBlocks(DEFAULT_TITLE_TEMPLATE)
+    touchActive()
+  }
+
+  // --- Global title templates (presets) ---
+
+  function saveAsTemplate(name: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const template: TitlePageTemplate = {
+      id: generateId(),
+      name,
+      blocks: deepCloneTitleBlocks(doc.titleTemplate),
+    }
+    titleTemplates.value.push(template)
+  }
+
+  function applyTemplate(templateId: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const tpl = titleTemplates.value.find(t => t.id === templateId)
+    if (!tpl) return
+    doc.titleTemplate = deepCloneTitleBlocks(tpl.blocks)
+    touchActive()
+  }
+
+  function deleteTemplate(templateId: string) {
+    titleTemplates.value = titleTemplates.value.filter(t => t.id !== templateId)
+  }
+
+  function renameTemplate(templateId: string, name: string) {
+    const tpl = titleTemplates.value.find(t => t.id === templateId)
+    if (tpl) tpl.name = name
+  }
+
   return {
     documents,
     activeDocumentId,
     activeDocument,
+    titleTemplates,
     createNewDocument,
     duplicateDocument,
     deleteDocument,
@@ -355,5 +479,14 @@ export const useReportStore = defineStore('report', () => {
     addTableColumn,
     removeTableColumn,
     getBlockIndex,
+    addTitleBlock,
+    removeTitleBlock,
+    moveTitleBlock,
+    updateTitleBlock,
+    resetTitleTemplate,
+    saveAsTemplate,
+    applyTemplate,
+    deleteTemplate,
+    renameTemplate,
   }
 })
