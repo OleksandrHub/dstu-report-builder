@@ -14,7 +14,7 @@ import {
   convertInchesToTwip,
   convertMillimetersToTwip,
 } from 'docx'
-import type { ReportDocument, ReportBlock, ListItem, TitleLineBlock, TitleSpacerBlock } from '../types/document'
+import type { ReportDocument, ReportBlock, ListItem, TitleLineBlock, TitleSpacerBlock, TableRow as DocTableRow } from '../types/document'
 import { resolveTitleVars } from '../types/document'
 
 const CM_TO_EMU = 914400 / 2.54
@@ -44,12 +44,24 @@ function baseRun(text: string, cfg: FontConfig, bold = false, italic = false): T
   })
 }
 
-function bodyParagraph(runs: TextRun[], cfg: FontConfig, noIndent = false): Paragraph {
+function bodyParagraph(
+  runs: TextRun[],
+  cfg: FontConfig,
+  noIndent = false,
+  alignment: typeof AlignmentType[keyof typeof AlignmentType] = AlignmentType.JUSTIFIED
+): Paragraph {
   return new Paragraph({
     children: runs,
-    alignment: AlignmentType.JUSTIFIED,
+    alignment,
     spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
     indent: noIndent ? undefined : { firstLine: cmToTwip(cfg.paragraphIndent) },
+  })
+}
+
+function emptyParagraph(cfg: FontConfig): Paragraph {
+  return new Paragraph({
+    children: [new TextRun({ text: '', font: cfg.name, size: cfg.size })],
+    spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
   })
 }
 
@@ -108,7 +120,21 @@ function buildBlock(
   const s = doc.settings
 
   if (block.type === 'paragraph') {
-    return [bodyParagraph([baseRun(block.text, cfg)], cfg)]
+    const pCfg = { ...cfg }
+    if (block.fontSize) pCfg.size = ptToHalfPt(block.fontSize)
+    if (block.fontFamily) pCfg.name = block.fontFamily
+    if (block.lineSpacing !== undefined) pCfg.lineSpacing = block.lineSpacing
+
+    const alignMap: Record<string, typeof AlignmentType[keyof typeof AlignmentType]> = {
+      left: AlignmentType.LEFT,
+      center: AlignmentType.CENTER,
+      right: AlignmentType.RIGHT,
+      justify: AlignmentType.JUSTIFIED,
+    }
+    const alignment = alignMap[block.align ?? 'justify'] ?? AlignmentType.JUSTIFIED
+    const noIndent = block.align === 'center' || block.align === 'right'
+
+    return [bodyParagraph([baseRun(block.text, pCfg, block.bold ?? false)], pCfg, noIndent, alignment)]
   }
 
   if (block.type === 'heading') {
@@ -170,6 +196,8 @@ function buildBlock(
   if (block.type === 'code') {
     counters.code++
     const result: (Paragraph | Table)[] = []
+    const codeSize = ptToHalfPt(block.fontSize ?? 12)
+    const codeSpacing = block.lineSpacing ?? 1.0
 
     const refText = block.referenceText
       ? `${block.referenceText} ${s.listingPrefix.toLowerCase()} ${counters.code}.`
@@ -178,23 +206,15 @@ function buildBlock(
     if (refText) {
       result.push(bodyParagraph([baseRun(refText, cfg)], cfg))
     }
-
-    result.push(
-      captionParagraph(`${s.listingPrefix} ${counters.code} – ${block.caption}`, cfg)
-    )
-
+    result.push(emptyParagraph(cfg))
+    result.push(captionParagraph(`${s.listingPrefix} ${counters.code} – ${block.caption}`, cfg))
     result.push(
       new Paragraph({
-        children: [
-          new TextRun({
-            text: block.code,
-            font: 'Courier New',
-            size: cfg.size,
-          }),
-        ],
-        spacing: { line: 240, lineRule: 'auto' as never },
+        children: [new TextRun({ text: block.code, font: 'Courier New', size: codeSize })],
+        spacing: { line: Math.round(codeSpacing * 240), lineRule: 'auto' as never },
       })
     )
+    result.push(emptyParagraph(cfg))
 
     return result
   }
@@ -210,6 +230,7 @@ function buildBlock(
     if (refText) {
       result.push(bodyParagraph([baseRun(refText, cfg)], cfg))
     }
+    result.push(emptyParagraph(cfg))
 
     if (block.src && block.src.startsWith('data:')) {
       try {
@@ -220,13 +241,7 @@ function buildBlock(
 
         result.push(
           new Paragraph({
-            children: [
-              new ImageRun({
-                data: bytes,
-                transformation: { width: 400, height: 300 },
-                type: 'png',
-              }),
-            ],
+            children: [new ImageRun({ data: bytes, transformation: { width: 400, height: 300 }, type: 'png' })],
             alignment: AlignmentType.CENTER,
           })
         )
@@ -242,6 +257,7 @@ function buildBlock(
         spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
       })
     )
+    result.push(emptyParagraph(cfg))
 
     return result
   }
@@ -249,6 +265,10 @@ function buildBlock(
   if (block.type === 'table') {
     counters.table++
     const result: (Paragraph | Table)[] = []
+    const tblSize = ptToHalfPt(block.fontSize ?? 12)
+    const tblSpacing = block.lineSpacing ?? 1.0
+    const tCfg = { ...cfg, size: tblSize, lineSpacing: tblSpacing }
+    const ROWS_PER_PAGE = 20 // split threshold
 
     const refText = block.referenceText
       ? `У ${s.tablePrefix.toLowerCase()} ${counters.table} ${block.referenceText.toLowerCase()}.`
@@ -257,58 +277,53 @@ function buildBlock(
     if (refText) {
       result.push(bodyParagraph([baseRun(refText, cfg)], cfg))
     }
+    result.push(emptyParagraph(cfg))
 
-    result.push(
-      captionParagraph(`${s.tablePrefix} ${counters.table} – ${block.caption}`, cfg)
-    )
+    const makeBorder = () => ({
+      top: { style: BorderStyle.SINGLE, size: 1 },
+      bottom: { style: BorderStyle.SINGLE, size: 1 },
+      left: { style: BorderStyle.SINGLE, size: 1 },
+      right: { style: BorderStyle.SINGLE, size: 1 },
+    })
 
-    const headerRow = new TableRow({
+    const makeHeaderRow = () => new TableRow({
       children: block.headers.map(h =>
         new TableCell({
-          children: [
-            new Paragraph({
-              children: [baseRun(h, cfg, true)],
-              alignment: AlignmentType.CENTER,
-            }),
-          ],
-          borders: {
-            top: { style: BorderStyle.SINGLE, size: 1 },
-            bottom: { style: BorderStyle.SINGLE, size: 1 },
-            left: { style: BorderStyle.SINGLE, size: 1 },
-            right: { style: BorderStyle.SINGLE, size: 1 },
-          },
+          children: [new Paragraph({ children: [baseRun(h, tCfg, true)], alignment: AlignmentType.CENTER, spacing: { line: Math.round(tblSpacing * 240), lineRule: 'auto' as never } })],
+          borders: makeBorder(),
         })
       ),
       tableHeader: true,
     })
 
-    const dataRows = block.rows.map(
-      (row) =>
-        new TableRow({
-          children: row.cells.map(cell =>
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [baseRun(cell.text, cfg)],
-                }),
-              ],
-              borders: {
-                top: { style: BorderStyle.SINGLE, size: 1 },
-                bottom: { style: BorderStyle.SINGLE, size: 1 },
-                left: { style: BorderStyle.SINGLE, size: 1 },
-                right: { style: BorderStyle.SINGLE, size: 1 },
-              },
-            })
-          ),
+    const makeDataRow = (row: DocTableRow) => new TableRow({
+      children: row.cells.map(cell =>
+        new TableCell({
+          children: [new Paragraph({ children: [baseRun(cell.text, tCfg)], spacing: { line: Math.round(tblSpacing * 240), lineRule: 'auto' as never } })],
+          borders: makeBorder(),
         })
-    )
+      ),
+    })
 
-    result.push(
-      new Table({
-        rows: [headerRow, ...dataRows],
+    // Split into chunks if large
+    const chunks: DocTableRow[][] = []
+    for (let i = 0; i < block.rows.length; i += ROWS_PER_PAGE) {
+      chunks.push(block.rows.slice(i, i + ROWS_PER_PAGE))
+    }
+
+    chunks.forEach((chunk, ci) => {
+      if (ci === 0) {
+        result.push(captionParagraph(`${s.tablePrefix} ${counters.table} – ${block.caption}`, cfg))
+      } else {
+        result.push(emptyParagraph(cfg))
+        result.push(captionParagraph(`Продовження таблиці ${counters.table} – ${block.caption}`, cfg, AlignmentType.RIGHT))
+      }
+      result.push(new Table({
+        rows: [makeHeaderRow(), ...chunk.map(makeDataRow)],
         width: { size: 100, type: WidthType.PERCENTAGE },
-      })
-    )
+      }))
+    })
+    result.push(emptyParagraph(cfg))
 
     return result
   }

@@ -41,11 +41,11 @@ function createDocument(name: string): ReportDocument {
     titleTemplate: deepCloneTitleBlocks(DEFAULT_TITLE_TEMPLATE),
     settings: { ...DEFAULT_SETTINGS },
     blocks: [
-      { id: generateId(), type: 'paragraph', text: 'Тема: .' },
-      { id: generateId(), type: 'paragraph', text: 'Мета: .' },
-      { id: generateId(), type: 'paragraph', text: 'Варіант №1' },
-      { id: generateId(), type: 'paragraph', text: 'Виконання роботи:' },
-      { id: generateId(), type: 'paragraph', text: 'Висновки:' },
+      { id: generateId(), type: 'paragraph', text: 'Тема: ', bold: false, align: 'justify' },
+      { id: generateId(), type: 'paragraph', text: 'Мета: ', bold: false, align: 'justify' },
+      { id: generateId(), type: 'paragraph', text: 'Варіант №1', bold: false, align: 'center' },
+      { id: generateId(), type: 'paragraph', text: 'Виконання роботи:', bold: true, align: 'center' },
+      { id: generateId(), type: 'paragraph', text: 'Висновки:', bold: true, align: 'center' },
     ],
   }
 }

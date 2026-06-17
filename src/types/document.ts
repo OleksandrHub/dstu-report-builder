@@ -32,6 +32,11 @@ export interface ParagraphBlock {
   id: string
   type: 'paragraph'
   text: string
+  bold?: boolean
+  align?: 'left' | 'center' | 'right' | 'justify'
+  fontSize?: number   // pt, overrides doc default
+  fontFamily?: string // overrides doc default
+  lineSpacing?: number // overrides doc default
 }
 
 export interface HeadingBlock {
@@ -61,6 +66,8 @@ export interface CodeBlock {
   code: string
   language: string
   referenceText?: string
+  fontSize?: number     // default 12
+  lineSpacing?: number  // default 1.0
 }
 
 export interface ImageBlock {
@@ -90,6 +97,8 @@ export interface TableBlock {
   headers: string[]
   rows: TableRow[]
   referenceText?: string
+  fontSize?: number     // default 12
+  lineSpacing?: number  // default 1.0
 }
 
 export interface WorkIntro {

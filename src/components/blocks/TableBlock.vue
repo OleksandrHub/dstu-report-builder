@@ -59,6 +59,22 @@ function updateCell(rowId: string, colIdx: number, value: string) {
       />
     </div>
 
+    <div class="block-style-row">
+      <span class="style-label">Розмір:</span>
+      <input type="number" min="8" max="24" step="1" class="style-number"
+        :value="props.block.fontSize ?? 12"
+        @input="emit('update', { fontSize: parseInt(($event.target as HTMLInputElement).value) || 12 })"
+        title="Розмір шрифту (pt)"
+      />
+      <span class="style-unit">pt</span>
+      <span class="style-label">Інтервал:</span>
+      <input type="number" min="1" max="3" step="0.5" class="style-number"
+        :value="props.block.lineSpacing ?? 1.0"
+        @input="emit('update', { lineSpacing: parseFloat(($event.target as HTMLInputElement).value) || 1.0 })"
+        title="Міжрядковий інтервал"
+      />
+    </div>
+
     <div class="table-editor-wrap">
       <table class="editor-table">
         <thead>

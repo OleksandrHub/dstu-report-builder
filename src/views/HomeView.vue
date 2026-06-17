@@ -172,9 +172,19 @@ function onUpdateBlock(id: string, data: Partial<ReportBlock>) {
           <!-- PAGE 2+: Body blocks -->
           <div class="a4-page" :style="pageStyles">
             <div v-for="block in doc.blocks" :key="block.id" class="preview-block">
-              <p v-if="block.type === 'paragraph'" class="preview-paragraph" :style="paragraphStyles">
-                {{ block.text }}
-              </p>
+              <p
+                v-if="block.type === 'paragraph'"
+                class="preview-paragraph"
+                :style="{
+                  ...(['left','justify',undefined].includes(block.align) ? paragraphStyles : {}),
+                  textAlign: block.align ?? 'justify',
+                  fontWeight: block.bold ? '700' : undefined,
+                  fontSize: block.fontSize ? `${block.fontSize * (96/72)}px` : undefined,
+                  fontFamily: block.fontFamily ?? undefined,
+                  lineHeight: block.lineSpacing ?? undefined,
+                  textIndent: (!block.align || block.align === 'justify') ? undefined : '0',
+                }"
+              >{{ block.text }}</p>
 
               <component
                 v-else-if="block.type === 'heading'"
