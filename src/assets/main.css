@@ -480,19 +480,21 @@ body {
 
 .docx-preview-root {
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
 }
 
-/* docx-preview pages */
+/* docx-preview library overrides */
 .docx-preview-root .docx-wrapper {
   background: transparent !important;
   padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 24px !important;
 }
-.docx-preview-root .docx {
+.docx-preview-root section.docx {
   box-shadow: 0 4px 24px rgba(0,0,0,0.5) !important;
-  margin-bottom: 24px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
 }
 
 /* A4 page */

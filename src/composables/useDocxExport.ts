@@ -98,27 +98,6 @@ function buildTitlePage(doc: ReportDocument, cfg: FontConfig): Paragraph[] {
   return result
 }
 
-function buildIntro(doc: ReportDocument, cfg: FontConfig): Paragraph[] {
-  const { intro } = doc
-  return [
-    new Paragraph({
-      children: [baseRun(`Тема: ${intro.topic}.`, cfg)],
-      spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
-    }),
-    new Paragraph({
-      children: [baseRun(`Мета: ${intro.goal}.`, cfg)],
-      spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
-    }),
-    new Paragraph({
-      children: [baseRun(`Варіант №${intro.variant}`, cfg)],
-      spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
-    }),
-    new Paragraph({
-      children: [baseRun('Виконання роботи:', cfg, true)],
-      spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
-    }),
-  ]
-}
 
 function buildBlock(
   block: ReportBlock,
@@ -349,7 +328,6 @@ async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
   const counters = { image: 0, code: 0, table: 0 }
 
   const titleChildren = buildTitlePage(doc, cfg)
-  const introChildren = buildIntro(doc, cfg)
   const bodyChildren: (Paragraph | Table)[] = []
 
   for (const block of doc.blocks) {
@@ -383,7 +361,6 @@ async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
         children: [
           ...titleChildren,
           new Paragraph({ children: [], pageBreakBefore: true }),
-          ...introChildren,
           ...bodyChildren,
         ],
       },

@@ -5,7 +5,6 @@ import type {
   ReportBlock,
   DocumentSettings,
   TitlePageData,
-  WorkIntro,
   ListItem,
   TableRow,
   TitleBlock,
@@ -16,7 +15,6 @@ import type {
 import {
   DEFAULT_SETTINGS,
   DEFAULT_TITLE_PAGE,
-  DEFAULT_INTRO,
   DEFAULT_TITLE_TEMPLATE,
   TITLE_TEMPLATES_STORAGE_KEY,
   TITLE_DATA_TEMPLATES_KEY,
@@ -41,9 +39,14 @@ function createDocument(name: string): ReportDocument {
     updatedAt: new Date().toISOString(),
     titlePage: { ...DEFAULT_TITLE_PAGE, year: new Date().getFullYear().toString() },
     titleTemplate: deepCloneTitleBlocks(DEFAULT_TITLE_TEMPLATE),
-    intro: { ...DEFAULT_INTRO },
     settings: { ...DEFAULT_SETTINGS },
-    blocks: [],
+    blocks: [
+      { id: generateId(), type: 'paragraph', text: 'Тема: .' },
+      { id: generateId(), type: 'paragraph', text: 'Мета: .' },
+      { id: generateId(), type: 'paragraph', text: 'Варіант №1' },
+      { id: generateId(), type: 'paragraph', text: 'Виконання роботи:' },
+      { id: generateId(), type: 'paragraph', text: 'Висновки:' },
+    ],
   }
 }
 
@@ -110,6 +113,20 @@ export const useReportStore = defineStore('report', () => {
           delete b.heightCm
         }
       }
+    }
+  }
+
+  // Migrate: convert old intro field into paragraph blocks prepended to blocks[]
+  for (const doc of rawDocs) {
+    const d = doc as ReportDocument & { intro?: { topic?: string; goal?: string; variant?: string } }
+    if (d.intro) {
+      const introBlocks: ReportBlock[] = []
+      if (d.intro.topic) introBlocks.push({ id: generateId(), type: 'paragraph', text: `Тема: ${d.intro.topic}.` })
+      if (d.intro.goal) introBlocks.push({ id: generateId(), type: 'paragraph', text: `Мета: ${d.intro.goal}.` })
+      if (d.intro.variant) introBlocks.push({ id: generateId(), type: 'paragraph', text: `Варіант №${d.intro.variant}` })
+      introBlocks.push({ id: generateId(), type: 'paragraph', text: 'Виконання роботи:' })
+      doc.blocks = [...introBlocks, ...doc.blocks]
+      delete d.intro
     }
   }
 
@@ -201,15 +218,6 @@ export const useReportStore = defineStore('report', () => {
     const doc = activeDocument.value
     if (!doc) return
     doc.titlePage = { ...doc.titlePage, ...data }
-    touchActive()
-  }
-
-  // --- Intro ---
-
-  function updateIntro(data: Partial<WorkIntro>) {
-    const doc = activeDocument.value
-    if (!doc) return
-    doc.intro = { ...doc.intro, ...data }
     touchActive()
   }
 
@@ -529,7 +537,6 @@ export const useReportStore = defineStore('report', () => {
     renameDocument,
     setActiveDocument,
     updateTitlePage,
-    updateIntro,
     updateSettings,
     addBlock,
     removeBlock,

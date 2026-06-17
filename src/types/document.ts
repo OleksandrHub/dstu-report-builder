@@ -158,8 +158,7 @@ export interface ReportDocument {
   createdAt: string
   updatedAt: string
   titlePage: TitlePageData
-  titleTemplate: TitleBlock[]   // the active title layout
-  intro: WorkIntro
+  titleTemplate: TitleBlock[]
   settings: DocumentSettings
   blocks: ReportBlock[]
 }
