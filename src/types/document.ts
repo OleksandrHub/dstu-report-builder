@@ -124,7 +124,12 @@ export interface TitleLineBlock {
 export interface TitleSpacerBlock {
   id: string
   type: 'titleSpacer'
-  flex: number           // how much vertical space to take (1 = normal, 2 = double)
+  lines: number          // number of text lines (converted to cm using doc font settings)
+}
+
+// lines × fontSize(pt) × lineSpacing × (2.54/72) = height in cm
+export function spacerHeightCm(lines: number, fontSizePt: number, lineSpacing: number): number {
+  return lines * fontSizePt * lineSpacing * (2.54 / 72)
 }
 
 export type TitleBlock = TitleLineBlock | TitleSpacerBlock
@@ -199,17 +204,17 @@ export const DEFAULT_TITLE_TEMPLATE: TitleBlock[] = [
   line('{{ministry}}', 'center'),
   line('{{university}}', 'center'),
   line('{{department}}', 'center'),
-  { id: tid(), type: 'titleSpacer', flex: 3 },
+  { id: tid(), type: 'titleSpacer', lines: 3 },
   line('ЗВІТ', 'center', true),
   line('про виконання {{workType}} №{{workNumber}}', 'center'),
   line('на тему: «{{topic}}»', 'center'),
   line('з дисципліни «{{discipline}}»', 'center'),
-  { id: tid(), type: 'titleSpacer', flex: 3 },
+  { id: tid(), type: 'titleSpacer', lines: 3 },
   line('Виконав: Студент групи {{studentGroup}}', 'left', false, 9, 0),
   line('{{studentName}}', 'left', false, 9, 0),
   line('Прийняв: {{teacherTitle}}', 'left', false, 9, 0),
   line('{{teacherName}}', 'left', false, 9, 0),
-  { id: tid(), type: 'titleSpacer', flex: 3 },
+  { id: tid(), type: 'titleSpacer', lines: 3 },
   line('{{city}} – {{year}}', 'center'),
 ]
 

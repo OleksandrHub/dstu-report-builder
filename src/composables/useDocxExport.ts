@@ -73,10 +73,11 @@ function buildTitlePage(doc: ReportDocument, cfg: FontConfig): Paragraph[] {
   for (const block of doc.titleTemplate) {
     if (block.type === 'titleSpacer') {
       const spacer = block as TitleSpacerBlock
-      for (let i = 0; i < spacer.flex; i++) {
+      const lineVal = Math.round(cfg.lineSpacing * 240)
+      for (let i = 0; i < spacer.lines; i++) {
         result.push(new Paragraph({
-          children: [new TextRun('')],
-          spacing: { before: 120, after: 120 },
+          children: [new TextRun({ text: '', size: cfg.size, font: cfg.name })],
+          spacing: { before: 0, after: 0, line: lineVal, lineRule: 'auto' as never },
         }))
       }
     } else {

@@ -16,7 +16,7 @@ import IntroEditor from '../components/editor/IntroEditor.vue'
 import SettingsEditor from '../components/editor/SettingsEditor.vue'
 
 import type { ReportBlock, TitleLineBlock, TitleSpacerBlock } from '../types/document'
-import { resolveTitleVars } from '../types/document'
+import { resolveTitleVars, spacerHeightCm } from '../types/document'
 
 const store = useReportStore()
 const { doc, settings, getBlockIndex, formatListItem, pageStyles, paragraphStyles } = useReport()
@@ -154,7 +154,7 @@ function onUpdateBlock(id: string, data: Partial<ReportBlock>) {
                 <div
                   v-if="block.type === 'titleSpacer'"
                   class="preview-title-spacer"
-                  :style="{ flex: (block as TitleSpacerBlock).flex }"
+                  :style="{ height: `${spacerHeightCm((block as TitleSpacerBlock).lines, settings!.fontSize, settings!.lineSpacing)}cm` }"
                 />
                 <p
                   v-else

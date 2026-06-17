@@ -87,12 +87,12 @@ function insertVar(blockId: string, v: string, currentText: string) {
           <div class="spacer-row">
             <span class="block-type-label">⟷ Відступ</span>
             <div class="spacer-flex-ctrl">
-              <label>Розмір:</label>
+              <label>Рядків:</label>
               <input
-                type="number" min="1" max="10" step="1"
+                type="number" min="1" max="50" step="1"
                 class="small-number-input"
-                :value="(block as TitleSpacerBlock).flex"
-                @input="store.updateTitleBlock(block.id, { flex: parseInt(($event.target as HTMLInputElement).value) || 1 })"
+                :value="(block as TitleSpacerBlock).lines"
+                @input="store.updateTitleBlock(block.id, { lines: parseInt(($event.target as HTMLInputElement).value) || 1 })"
               />
             </div>
             <div class="block-actions">
@@ -143,14 +143,14 @@ function insertVar(blockId: string, v: string, currentText: string) {
           <div class="line-padding-row">
             <label>Відступ зліва (см):</label>
             <input
-              type="number" min="0" max="20" step="0.5"
+              type="number" min="0" max="20" step="any"
               class="small-number-input"
               :value="(block as TitleLineBlock).paddingLeft"
               @input="store.updateTitleBlock(block.id, { paddingLeft: parseFloat(($event.target as HTMLInputElement).value) || 0 })"
             />
             <label>Відступ справа (см):</label>
             <input
-              type="number" min="0" max="20" step="0.5"
+              type="number" min="0" max="20" step="any"
               class="small-number-input"
               :value="(block as TitleLineBlock).paddingRight"
               @input="store.updateTitleBlock(block.id, { paddingRight: parseFloat(($event.target as HTMLInputElement).value) || 0 })"

@@ -9,6 +9,7 @@ import type {
   ListItem,
   TableRow,
   TitleBlock,
+  TitleSpacerBlock,
   TitlePageTemplate,
 } from '../types/document'
 import {
@@ -79,11 +80,19 @@ export const useReportStore = defineStore('report', () => {
     if (!doc.titleTemplate) {
       doc.titleTemplate = deepCloneTitleBlocks(DEFAULT_TITLE_TEMPLATE)
     } else {
-      // Migrate: add paddingLeft/paddingRight to old titleLine blocks that lack them
       for (const block of doc.titleTemplate) {
         if (block.type === 'titleLine') {
           if (block.paddingLeft === undefined) block.paddingLeft = 0
           if (block.paddingRight === undefined) block.paddingRight = 0
+        }
+        if (block.type === 'titleSpacer') {
+          const b = block as TitleSpacerBlock & { flex?: number; heightCm?: number }
+          if (b.lines === undefined) {
+            // migrate old flex or heightCm → lines (1 line ≈ 0.74cm at 14pt×1.5)
+            b.lines = b.flex ?? (Math.round((b.heightCm ?? 2) / 0.74) || 1)
+          }
+          delete b.flex
+          delete b.heightCm
         }
       }
     }
@@ -379,7 +388,7 @@ export const useReportStore = defineStore('report', () => {
     const doc = activeDocument.value
     if (!doc) return
     const newBlock: TitleBlock = type === 'titleSpacer'
-      ? { id: generateId(), type: 'titleSpacer', flex: 1 }
+      ? { id: generateId(), type: 'titleSpacer', lines: 1 }
       : { id: generateId(), type: 'titleLine', text: 'Новий рядок', align: 'center', bold: false, spaceBefore: false, paddingLeft: 0, paddingRight: 0 }
 
     if (afterId) {

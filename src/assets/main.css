@@ -481,6 +481,7 @@ body {
   border-radius: 2px;
   position: relative;
   margin-bottom: 24px;
+  box-sizing: border-box;
   /* pageStyles applied via :style binding */
 }
 
@@ -490,20 +491,17 @@ body {
 .preview-left { text-align: left; }
 .preview-bold { font-weight: 700; }
 
-/* Title page: flex column, spacers grow to fill space */
 .preview-title-page {
-  display: flex;
-  flex-direction: column;
-  height: calc(29.7cm - 4cm); /* full page minus margins */
+  display: block;
 }
 .preview-title-line {
-  margin: 1px 0;
+  margin: 0;
   line-height: 1.5;
-  flex-shrink: 0;
 }
 .preview-title-spacer {
-  /* flex is set via :style */
-  min-height: 8px;
+  /* height is set via :style in cm */
+  display: block;
+  flex-shrink: 0;
 }
 
 .preview-intro { margin-bottom: 12px; }
