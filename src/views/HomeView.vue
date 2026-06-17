@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { renderAsync } from 'docx-preview'
 import { useReportStore } from '../stores/report'
 import { useReport } from '../composables/useReport'
 import { useDocxExport } from '../composables/useDocxExport'
@@ -14,12 +15,11 @@ import TitlePageEditor from '../components/editor/TitlePageEditor.vue'
 import TitleTemplateEditor from '../components/editor/TitleTemplateEditor.vue'
 import SettingsEditor from '../components/editor/SettingsEditor.vue'
 
-import type { ReportBlock, TitleLineBlock, TitleSpacerBlock } from '../types/document'
-import { resolveTitleVars, spacerHeightCm } from '../types/document'
+import type { ReportBlock } from '../types/document'
 
 const store = useReportStore()
-const { doc, settings, getBlockIndex, formatListItem, pageStyles, paragraphStyles } = useReport()
-const { exportToDocx } = useDocxExport()
+const { doc } = useReport()
+const { exportToDocx, getPreviewBlob } = useDocxExport()
 
 type LeftTab = 'titlepage' | 'titleblocks' | 'blocks' | 'settings'
 const leftTab = ref<LeftTab>('titlepage')
@@ -32,6 +32,54 @@ async function handleExport() {
 function onUpdateBlock(id: string, data: Partial<ReportBlock>) {
   store.updateBlock(id, data)
 }
+
+// ===== Live docx preview =====
+const previewRef = ref<HTMLElement | null>(null)
+const previewError = ref<string | null>(null)
+const previewLoading = ref(false)
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
+let renderToken = 0
+
+async function renderPreview() {
+  if (!doc.value || !previewRef.value) return
+  const token = ++renderToken
+  previewLoading.value = true
+  previewError.value = null
+  try {
+    const blob = await getPreviewBlob(doc.value)
+    if (token !== renderToken || !previewRef.value) return // superseded
+    await renderAsync(blob, previewRef.value, undefined, {
+      className: 'docx',
+      inWrapper: true,
+      ignoreWidth: false,
+      ignoreHeight: false,
+      breakPages: true,
+      experimental: true,
+      useBase64URL: true,
+    })
+  } catch (e) {
+    previewError.value = (e as Error)?.message ?? 'Помилка рендеру'
+  } finally {
+    if (token === renderToken) previewLoading.value = false
+  }
+}
+
+function scheduleRender() {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(renderPreview, 400)
+}
+
+onMounted(async () => {
+  await nextTick()
+  renderPreview()
+})
+
+onBeforeUnmount(() => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+})
+
+// Re-render whenever the active document changes (deep).
+watch(doc, scheduleRender, { deep: true })
 </script>
 
 <template>
@@ -93,7 +141,7 @@ function onUpdateBlock(id: string, data: Partial<ReportBlock>) {
               <CodeBlockEditor
                 v-else-if="block.type === 'code'"
                 :block="block"
-                :index="getBlockIndex(block.id, 'code')"
+                :index="store.getBlockIndex(block.id, 'code')"
                 @update="onUpdateBlock(block.id, $event)"
                 @remove="store.removeBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
@@ -102,7 +150,7 @@ function onUpdateBlock(id: string, data: Partial<ReportBlock>) {
               <ImageBlockEditor
                 v-else-if="block.type === 'image'"
                 :block="block"
-                :index="getBlockIndex(block.id, 'image')"
+                :index="store.getBlockIndex(block.id, 'image')"
                 @update="onUpdateBlock(block.id, $event)"
                 @remove="store.removeBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
@@ -111,7 +159,7 @@ function onUpdateBlock(id: string, data: Partial<ReportBlock>) {
               <TableBlockEditor
                 v-else-if="block.type === 'table'"
                 :block="block"
-                :index="getBlockIndex(block.id, 'table')"
+                :index="store.getBlockIndex(block.id, 'table')"
                 @update="onUpdateBlock(block.id, $event)"
                 @remove="store.removeBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
@@ -130,6 +178,9 @@ function onUpdateBlock(id: string, data: Partial<ReportBlock>) {
               <button @click="store.addBlock('image')">🖼 Рисунок</button>
               <button @click="store.addBlock('table')">⊞ Таблиця</button>
             </div>
+            <button class="btn-intro-blocks" @click="store.addIntroBlocks()">
+              + Тема / Мета / Висновки / Виконання / Варіант
+            </button>
           </div>
         </div>
       </div>
@@ -139,118 +190,16 @@ function onUpdateBlock(id: string, data: Partial<ReportBlock>) {
       </div>
     </aside>
 
-    <!-- RIGHT: A4 Preview -->
+    <!-- RIGHT: Live .docx preview -->
     <main class="preview-panel">
-      <div class="preview-scroll">
-        <template v-if="doc">
-
-          <!-- PAGE 1: Title page -->
-          <div class="a4-page" :style="pageStyles">
-            <div class="preview-title-page">
-              <template v-for="block in doc.titleTemplate" :key="block.id">
-                <div
-                  v-if="block.type === 'titleSpacer'"
-                  class="preview-title-spacer"
-                  :style="{ height: `${spacerHeightCm((block as TitleSpacerBlock).lines, settings!.fontSize, settings!.lineSpacing)}cm` }"
-                />
-                <p
-                  v-else
-                  :class="[
-                    'preview-title-line',
-                    `preview-${(block as TitleLineBlock).align}`,
-                    { 'preview-bold': (block as TitleLineBlock).bold }
-                  ]"
-                  :style="{
-                    paddingLeft: (block as TitleLineBlock).paddingLeft ? `${(block as TitleLineBlock).paddingLeft}cm` : undefined,
-                    paddingRight: (block as TitleLineBlock).paddingRight ? `${(block as TitleLineBlock).paddingRight}cm` : undefined,
-                  }"
-                >{{ resolveTitleVars((block as TitleLineBlock).text, doc.titlePage) }}</p>
-              </template>
-            </div>
-          </div>
-
-          <!-- PAGE 2+: Body blocks -->
-          <div class="a4-page" :style="pageStyles">
-            <div v-for="block in doc.blocks" :key="block.id" class="preview-block">
-              <p
-                v-if="block.type === 'paragraph'"
-                class="preview-paragraph"
-                :style="{
-                  ...(['left','justify',undefined].includes(block.align) ? paragraphStyles : {}),
-                  textAlign: block.align ?? 'justify',
-                  fontWeight: block.bold ? '700' : undefined,
-                  fontSize: block.fontSize ? `${block.fontSize * (96/72)}px` : undefined,
-                  fontFamily: block.fontFamily ?? undefined,
-                  lineHeight: block.lineSpacing ?? undefined,
-                  textIndent: (!block.align || block.align === 'justify') ? undefined : '0',
-                }"
-              >{{ block.text }}</p>
-
-              <component
-                v-else-if="block.type === 'heading'"
-                :is="'h' + block.level"
-                class="preview-heading"
-              >{{ block.text }}</component>
-
-              <div v-else-if="block.type === 'list'">
-                <p v-if="block.introText" class="preview-paragraph" :style="paragraphStyles">{{ block.introText }}</p>
-                <ol v-if="block.ordered" class="preview-list">
-                  <li v-for="(item, idx) in block.items" :key="item.id">
-                    {{ formatListItem(item.text, true, idx === block.items.length - 1) }}
-                  </li>
-                </ol>
-                <ul v-else class="preview-list preview-list-bullet">
-                  <li v-for="(item, idx) in block.items" :key="item.id">
-                    {{ formatListItem(item.text, false, idx === block.items.length - 1) }}
-                  </li>
-                </ul>
-              </div>
-
-              <div v-else-if="block.type === 'code'">
-                <p v-if="block.referenceText" class="preview-paragraph" :style="paragraphStyles">
-                  {{ block.referenceText }} {{ doc.settings.listingPrefix.toLowerCase() }} {{ getBlockIndex(block.id, 'code') }}.
-                </p>
-                <p class="preview-caption preview-caption-top">
-                  {{ doc.settings.listingPrefix }} {{ getBlockIndex(block.id, 'code') }} – {{ block.caption }}
-                </p>
-                <pre class="preview-code">{{ block.code }}</pre>
-              </div>
-
-              <div v-else-if="block.type === 'image'">
-                <p v-if="block.referenceText" class="preview-paragraph" :style="paragraphStyles">
-                  {{ block.referenceText }} {{ doc.settings.imagePrefix.toLowerCase() }} {{ getBlockIndex(block.id, 'image') }}.
-                </p>
-                <div class="preview-image-wrap">
-                  <img v-if="block.src" :src="block.src" class="preview-image" :alt="block.caption" />
-                  <div v-else class="preview-image-placeholder">[Зображення не завантажено]</div>
-                </div>
-                <p class="preview-caption preview-caption-bottom preview-center">
-                  {{ doc.settings.imagePrefix }} {{ getBlockIndex(block.id, 'image') }} – {{ block.caption }}
-                </p>
-              </div>
-
-              <div v-else-if="block.type === 'table'">
-                <p v-if="block.referenceText" class="preview-paragraph" :style="paragraphStyles">
-                  У {{ doc.settings.tablePrefix.toLowerCase() }} {{ getBlockIndex(block.id, 'table') }} {{ block.referenceText }}.
-                </p>
-                <p class="preview-caption preview-caption-top">
-                  {{ doc.settings.tablePrefix }} {{ getBlockIndex(block.id, 'table') }} – {{ block.caption }}
-                </p>
-                <table class="preview-table">
-                  <thead>
-                    <tr><th v-for="(h, i) in block.headers" :key="i">{{ h }}</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="row in block.rows" :key="row.id">
-                      <td v-for="(cell, i) in row.cells" :key="i">{{ cell.text }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-        </template>
+      <div class="preview-toolbar">
+        <span class="preview-label">Перегляд .docx</span>
+        <span v-if="previewLoading" class="preview-status">оновлення…</span>
+        <button class="preview-refresh" @click="renderPreview" title="Оновити перегляд">⟳</button>
+      </div>
+      <div class="preview-scroll docx-preview-scroll">
+        <div v-if="previewError" class="preview-error">⚠ {{ previewError }}</div>
+        <div ref="previewRef" class="docx-preview-root"></div>
       </div>
     </main>
   </div>

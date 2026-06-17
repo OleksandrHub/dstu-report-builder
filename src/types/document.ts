@@ -1,3 +1,14 @@
+export type HeaderFooterMode = 'none' | 'text' | 'pageNumber' | 'textAndPage'
+export type HeaderFooterAlign = 'left' | 'center' | 'right'
+
+export interface HeaderFooterConfig {
+  mode: HeaderFooterMode
+  text: string          // used when mode is 'text' or 'textAndPage'
+  align: HeaderFooterAlign
+  fontSize: number      // pt
+  fontFamily: string
+}
+
 export interface DocumentSettings {
   fontFamily: string
   fontSize: number // pt
@@ -10,6 +21,8 @@ export interface DocumentSettings {
   imagePrefix: string
   listingPrefix: string
   tablePrefix: string
+  header: HeaderFooterConfig
+  footer: HeaderFooterConfig
 }
 
 export interface TitlePageData {
@@ -184,6 +197,8 @@ export const DEFAULT_SETTINGS: DocumentSettings = {
   imagePrefix: 'Рисунок',
   listingPrefix: 'Лістинг',
   tablePrefix: 'Таблиця',
+  header: { mode: 'none', text: '', align: 'right', fontSize: 12, fontFamily: 'Times New Roman' },
+  footer: { mode: 'pageNumber', text: '', align: 'center', fontSize: 12, fontFamily: 'Times New Roman' },
 }
 
 export const DEFAULT_TITLE_PAGE: TitlePageData = {

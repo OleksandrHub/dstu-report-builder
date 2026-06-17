@@ -512,15 +512,72 @@ body {
   align-items: center;
 }
 
-.preview-loading {
-  color: var(--color-text-muted);
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #2c2c2c;
+  border-bottom: 1px solid #1c1c1c;
+  flex-shrink: 0;
+}
+.preview-label {
+  color: #ddd;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.preview-status {
+  color: var(--color-accent2, #7aa);
+  font-size: 12px;
+  font-family: var(--font-ui);
+}
+.preview-refresh {
+  margin-left: auto;
+  background: var(--color-surface2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+.preview-refresh:hover { background: var(--color-accent2); }
+.preview-error {
+  color: #ff8888;
+  background: rgba(255,0,0,0.08);
+  border: 1px solid rgba(255,0,0,0.3);
+  border-radius: var(--radius);
+  padding: 8px 12px;
   font-size: 13px;
-  margin-bottom: 8px;
-  align-self: flex-start;
+  align-self: stretch;
+  margin-bottom: 12px;
 }
 
 .docx-preview-root {
   width: 100%;
+}
+
+/* Intro blocks quick-add button */
+.btn-intro-blocks {
+  margin-top: 10px;
+  width: 100%;
+  background: var(--color-surface2);
+  border: 1px dashed var(--color-accent2);
+  color: var(--color-text);
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  transition: all 0.15s;
+}
+.btn-intro-blocks:hover {
+  background: var(--color-accent2);
+  border-style: solid;
 }
 
 /* docx-preview library overrides */

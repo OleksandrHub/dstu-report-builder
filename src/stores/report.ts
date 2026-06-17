@@ -116,6 +116,16 @@ export const useReportStore = defineStore('report', () => {
     }
   }
 
+  // Migrate: add header/footer settings to old documents
+  for (const doc of rawDocs) {
+    if (doc.settings && !doc.settings.header) {
+      doc.settings.header = { mode: 'none', text: '', align: 'right', fontSize: 12, fontFamily: doc.settings.fontFamily || 'Times New Roman' }
+    }
+    if (doc.settings && !doc.settings.footer) {
+      doc.settings.footer = { mode: 'pageNumber', text: '', align: 'center', fontSize: 12, fontFamily: doc.settings.fontFamily || 'Times New Roman' }
+    }
+  }
+
   // Migrate: convert old intro field into paragraph blocks prepended to blocks[]
   for (const doc of rawDocs) {
     const d = doc as ReportDocument & { intro?: { topic?: string; goal?: string; variant?: string } }
@@ -293,6 +303,20 @@ export const useReportStore = defineStore('report', () => {
     }
 
     doc.blocks.push(block)
+    touchActive()
+  }
+
+  function addIntroBlocks() {
+    const doc = activeDocument.value
+    if (!doc) return
+    const introBlocks: ReportBlock[] = [
+      { id: generateId(), type: 'paragraph', text: 'Тема: ', bold: false, align: 'justify' },
+      { id: generateId(), type: 'paragraph', text: 'Мета: ', bold: false, align: 'justify' },
+      { id: generateId(), type: 'paragraph', text: 'Варіант №1', bold: false, align: 'center' },
+      { id: generateId(), type: 'paragraph', text: 'Виконання роботи:', bold: true, align: 'center' },
+      { id: generateId(), type: 'paragraph', text: 'Висновки:', bold: true, align: 'center' },
+    ]
+    doc.blocks = [...introBlocks, ...doc.blocks]
     touchActive()
   }
 
@@ -539,6 +563,7 @@ export const useReportStore = defineStore('report', () => {
     updateTitlePage,
     updateSettings,
     addBlock,
+    addIntroBlocks,
     removeBlock,
     moveBlock,
     updateBlock,

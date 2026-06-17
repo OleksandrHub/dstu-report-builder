@@ -11,10 +11,13 @@ import {
   WidthType,
   BorderStyle,
   ImageRun,
+  Header,
+  Footer,
+  PageNumber,
   convertInchesToTwip,
   convertMillimetersToTwip,
 } from 'docx'
-import type { ReportDocument, ReportBlock, ListItem, TitleLineBlock, TitleSpacerBlock, TableRow as DocTableRow } from '../types/document'
+import type { ReportDocument, ReportBlock, ListItem, TitleLineBlock, TitleSpacerBlock, TableRow as DocTableRow, HeaderFooterConfig } from '../types/document'
 import { resolveTitleVars } from '../types/document'
 
 const CM_TO_EMU = 914400 / 2.54
@@ -331,6 +334,50 @@ function buildBlock(
   return []
 }
 
+const HF_ALIGN_MAP: Record<string, typeof AlignmentType[keyof typeof AlignmentType]> = {
+  left: AlignmentType.LEFT,
+  center: AlignmentType.CENTER,
+  right: AlignmentType.RIGHT,
+}
+
+// Build the runs for a header/footer paragraph based on its mode.
+function hfRuns(hf: HeaderFooterConfig): (TextRun)[] {
+  const size = ptToHalfPt(hf.fontSize)
+  const font = hf.fontFamily
+  const runs: TextRun[] = []
+  const hasText = hf.mode === 'text' || hf.mode === 'textAndPage'
+  const hasPage = hf.mode === 'pageNumber' || hf.mode === 'textAndPage'
+
+  if (hasText && hf.text) {
+    runs.push(new TextRun({ text: hf.text, font, size }))
+  }
+  if (hasText && hasPage && hf.text) {
+    runs.push(new TextRun({ text: ' ', font, size }))
+  }
+  if (hasPage) {
+    runs.push(new TextRun({ children: [PageNumber.CURRENT], font, size }))
+  }
+  return runs
+}
+
+function buildHeader(hf: HeaderFooterConfig): Header | undefined {
+  if (hf.mode === 'none') return undefined
+  const runs = hfRuns(hf)
+  if (runs.length === 0) return undefined
+  return new Header({
+    children: [new Paragraph({ children: runs, alignment: HF_ALIGN_MAP[hf.align] ?? AlignmentType.RIGHT })],
+  })
+}
+
+function buildFooter(hf: HeaderFooterConfig): Footer | undefined {
+  if (hf.mode === 'none') return undefined
+  const runs = hfRuns(hf)
+  if (runs.length === 0) return undefined
+  return new Footer({
+    children: [new Paragraph({ children: runs, alignment: HF_ALIGN_MAP[hf.align] ?? AlignmentType.CENTER })],
+  })
+}
+
 async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
   const s = doc.settings
   const cfg: FontConfig = {
@@ -349,6 +396,9 @@ async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
     const elements = buildBlock(block, doc, cfg, counters)
     bodyChildren.push(...elements)
   }
+
+  const header = buildHeader(s.header)
+  const footer = buildFooter(s.footer)
 
   const docxDoc = new Document({
     styles: {
@@ -372,7 +422,15 @@ async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
               bottom: cmToTwip(s.marginBottom),
             },
           },
+          // Title page gets its own (empty) header/footer so numbering starts on the body.
+          titlePage: true,
         },
+        headers: header
+          ? { default: header, first: new Header({ children: [new Paragraph({ children: [] })] }) }
+          : undefined,
+        footers: footer
+          ? { default: footer, first: new Footer({ children: [new Paragraph({ children: [] })] }) }
+          : undefined,
         children: [
           ...titleChildren,
           new Paragraph({ children: [], pageBreakBefore: true }),
