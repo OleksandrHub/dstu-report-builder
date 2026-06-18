@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ListBlock, ListItem } from '../../types/document'
 import { useReportStore } from '../../stores/report'
+import MarkerHint from './MarkerHint.vue'
 
 const props = defineProps<{ block: ListBlock }>()
 const emit = defineEmits<{
@@ -65,5 +66,6 @@ const store = useReportStore()
     <button class="btn-add-item" @click="store.addListItem(props.block.id)">
       + Додати елемент
     </button>
+    <MarkerHint />
   </div>
 </template>

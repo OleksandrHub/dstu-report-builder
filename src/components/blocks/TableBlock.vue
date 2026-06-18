@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TableBlock } from '../../types/document'
 import { useReportStore } from '../../stores/report'
+import MarkerHint from './MarkerHint.vue'
 
 const props = defineProps<{ block: TableBlock; index: number }>()
 const emit = defineEmits<{
@@ -157,5 +158,6 @@ function updateCell(rowId: string, colIdx: number, value: string) {
     <button class="btn-add-item" @click="store.addTableRow(props.block.id)">
       + Додати рядок
     </button>
+    <MarkerHint />
   </div>
 </template>

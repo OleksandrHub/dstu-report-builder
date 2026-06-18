@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ImageBlock } from '../../types/document'
 import { ref } from 'vue'
+import MarkerHint from './MarkerHint.vue'
 
 const props = defineProps<{ block: ImageBlock; index: number }>()
 const emit = defineEmits<{
@@ -72,6 +73,7 @@ function onFileChange(e: Event) {
         placeholder="Назва рисунка"
       />
     </div>
+    <MarkerHint />
 
     <div class="image-upload-area" @click="fileInputRef?.click()">
       <img v-if="props.block.src" :src="props.block.src" class="image-preview" alt="preview" />

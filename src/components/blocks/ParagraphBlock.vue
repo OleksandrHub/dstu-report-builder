@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useReportStore } from '../../stores/report'
 import type { ParagraphBlock } from '../../types/document'
+import MarkerHint from './MarkerHint.vue'
 
 const store = useReportStore()
 const props = defineProps<{ block: ParagraphBlock }>()
@@ -36,7 +37,7 @@ const indent = () => props.block.indent ?? doc()?.settings.paragraphIndent ?? 1.
       rows="3"
       placeholder="Текст абзацу..."
     />
-    <p class="block-hint">**жирний** · *курсив* · __підкреслення__ · `моноширинний`</p>
+    <MarkerHint />
 
     <div class="block-style-row">
       <!-- Align -->

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { HeadingBlock } from '../../types/document'
+import MarkerHint from './MarkerHint.vue'
 
 const props = defineProps<{ block: HeadingBlock }>()
 const emit = defineEmits<{
@@ -34,5 +35,6 @@ const emit = defineEmits<{
       @input="emit('update', { text: ($event.target as HTMLInputElement).value })"
       placeholder="Текст заголовка"
     />
+    <MarkerHint />
   </div>
 </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { CodeBlock } from '../../types/document'
+import MarkerHint from './MarkerHint.vue'
 
 const props = defineProps<{ block: CodeBlock; index: number }>()
 const emit = defineEmits<{
@@ -61,6 +62,7 @@ const languages = ['typescript', 'javascript', 'python', 'java', 'c', 'cpp', 'cs
         placeholder="Назва лістингу"
       />
     </div>
+    <MarkerHint />
 
     <div class="block-field-row">
       <label>Мова:</label>

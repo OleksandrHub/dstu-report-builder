@@ -121,7 +121,7 @@ function emptyParagraph(cfg: FontConfig): Paragraph {
 
 function captionParagraph(text: string, cfg: FontConfig, align: typeof AlignmentType[keyof typeof AlignmentType] = AlignmentType.LEFT): Paragraph {
   return new Paragraph({
-    children: [baseRun(text, cfg, false)],
+    children: inlineRuns(text, cfg),
     alignment: align,
     spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
   })
@@ -161,7 +161,7 @@ function buildTitlePage(doc: ReportDocument, cfg: FontConfig): Paragraph[] {
       const line = block as TitleLineBlock
       const resolved = resolveTitleVars(line.text, doc.titlePage)
       result.push(new Paragraph({
-        children: [baseRun(resolved, cfg, line.bold)],
+        children: inlineRuns(resolved, cfg, line.bold),
         alignment: ALIGN_MAP[line.align] ?? AlignmentType.LEFT,
         spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
         indent: {
@@ -212,7 +212,7 @@ function buildBlock(
     }
     return [
       new Paragraph({
-        children: [baseRun(block.text, cfg, true)],
+        children: inlineRuns(block.text, cfg, true),
         heading: levelMap[block.level],
         alignment: AlignmentType.CENTER,
         spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
@@ -224,7 +224,7 @@ function buildBlock(
     const result: Paragraph[] = []
 
     if (block.introText) {
-      result.push(bodyParagraph([baseRun(block.introText, cfg)], cfg))
+      result.push(bodyParagraph(inlineRuns(block.introText, cfg), cfg))
     }
 
     block.items.forEach((item: ListItem, idx: number) => {
@@ -237,7 +237,7 @@ function buildBlock(
         text = text.replace(/[;.,]$/, '') + '.'
         result.push(
           new Paragraph({
-            children: [baseRun(`${idx + 1}. ${text}`, cfg)],
+            children: inlineRuns(`${idx + 1}. ${text}`, cfg),
             alignment: AlignmentType.JUSTIFIED,
             spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
             indent: { firstLine: cmToTwip(cfg.paragraphIndent) },
@@ -248,7 +248,7 @@ function buildBlock(
         text = text.replace(/[;.,]$/, '') + (isLast ? '.' : ';')
         result.push(
           new Paragraph({
-            children: [baseRun(`– ${text}`, cfg)],
+            children: inlineRuns(`– ${text}`, cfg),
             alignment: AlignmentType.JUSTIFIED,
             spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
             indent: { left: cmToTwip(cfg.paragraphIndent) },
@@ -272,7 +272,7 @@ function buildBlock(
       if (block.inlineReference) {
         out.inlineRef = refText
       } else {
-        result.push(bodyParagraph([baseRun(refText, cfg)], cfg))
+        result.push(bodyParagraph(inlineRuns(refText, cfg), cfg))
       }
     }
     result.push(emptyParagraph(cfg))
@@ -298,7 +298,7 @@ function buildBlock(
       if (block.inlineReference) {
         out.inlineRef = refText
       } else {
-        result.push(bodyParagraph([baseRun(refText, cfg)], cfg))
+        result.push(bodyParagraph(inlineRuns(refText, cfg), cfg))
       }
     }
     result.push(emptyParagraph(cfg))
@@ -323,7 +323,7 @@ function buildBlock(
 
     result.push(
       new Paragraph({
-        children: [baseRun(`${s.imagePrefix} ${counters.image} – ${block.caption}`, cfg)],
+        children: inlineRuns(`${s.imagePrefix} ${counters.image} – ${block.caption}`, cfg),
         alignment: AlignmentType.CENTER,
         spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
       })
@@ -351,7 +351,7 @@ function buildBlock(
       if (block.inlineReference) {
         out.inlineRef = refText
       } else {
-        result.push(bodyParagraph([baseRun(refText, cfg)], cfg))
+        result.push(bodyParagraph(inlineRuns(refText, cfg), cfg))
       }
     }
     result.push(emptyParagraph(cfg))
@@ -366,7 +366,7 @@ function buildBlock(
     const makeHeaderRow = () => new TableRow({
       children: block.headers.map(h =>
         new TableCell({
-          children: [new Paragraph({ children: [baseRun(h, tCfg, true)], alignment: AlignmentType.CENTER, spacing: { line: Math.round(tblSpacing * 240), lineRule: 'auto' as never } })],
+          children: [new Paragraph({ children: inlineRuns(h, tCfg, true), alignment: AlignmentType.CENTER, spacing: { line: Math.round(tblSpacing * 240), lineRule: 'auto' as never } })],
           borders: makeBorder(),
         })
       ),
@@ -376,7 +376,7 @@ function buildBlock(
     const makeDataRow = (row: DocTableRow) => new TableRow({
       children: row.cells.map(cell =>
         new TableCell({
-          children: [new Paragraph({ children: [baseRun(cell.text, tCfg)], spacing: { line: Math.round(tblSpacing * 240), lineRule: 'auto' as never } })],
+          children: [new Paragraph({ children: inlineRuns(cell.text, tCfg), spacing: { line: Math.round(tblSpacing * 240), lineRule: 'auto' as never } })],
           borders: makeBorder(),
         })
       ),
@@ -493,9 +493,9 @@ async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
     if (out.inlineRef) {
       const prev = bodyChildren[bodyChildren.length - 1]
       if (prev instanceof Paragraph) {
-        prev.addChildElement(new TextRun({ text: ` ${out.inlineRef}`, font: cfg.name, size: cfg.size }))
+        for (const run of inlineRuns(` ${out.inlineRef}`, cfg)) prev.addChildElement(run)
       } else {
-        bodyChildren.push(bodyParagraph([baseRun(out.inlineRef, cfg)], cfg))
+        bodyChildren.push(bodyParagraph(inlineRuns(out.inlineRef, cfg), cfg))
       }
     }
 
