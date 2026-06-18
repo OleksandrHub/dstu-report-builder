@@ -79,7 +79,7 @@ async function renderPreview() {
       document: file,
       documentMode: 'viewing',
       role: 'viewer',
-      disablePiniaDevtools: true,
+      disablePiniaDevtools: false,
       onReady: () => {
         if (token === renderToken) previewLoading.value = false
       },

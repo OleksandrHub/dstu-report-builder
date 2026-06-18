@@ -282,7 +282,8 @@ interface LatexTokenizer { s: string; i: number }
 function readGroup(t: LatexTokenizer): string {
   // Returns the raw content of a {..} group (or a single token if no brace).
   if (t.s[t.i] === '{') {
-    let depth = 0, start = ++t.i
+    let depth = 0
+    const start = ++t.i
     while (t.i < t.s.length) {
       if (t.s[t.i] === '{') depth++
       else if (t.s[t.i] === '}') { if (depth === 0) break; depth-- }
@@ -541,10 +542,19 @@ function buildBlock(
 
   if (block.type === 'toc') {
     const title = block.title ?? 'Зміст'
+    // Per-block formatting overrides (apply to the "Зміст" title line).
+    const tCfg = { ...cfg }
+    if (block.fontSize) tCfg.size = ptToHalfPt(block.fontSize)
+    if (block.fontFamily) tCfg.name = block.fontFamily
+    if (block.lineSpacing !== undefined) tCfg.lineSpacing = block.lineSpacing
+    if (block.color) tCfg.color = block.color
+    const tBold = block.bold ?? true
+    const tAlign = ALIGN4_MAP[block.align ?? 'center'] ?? AlignmentType.CENTER
+
     const titlePara = new Paragraph({
-      children: inlineRuns(title, cfg, true),
-      alignment: AlignmentType.CENTER,
-      spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+      children: inlineRuns(title, tCfg, tBold),
+      alignment: tAlign,
+      spacing: { line: Math.round(tCfg.lineSpacing * 240), lineRule: 'auto' as never },
     })
     // The in-app preview (SuperDoc) can't render a TOC field — show a hint line
     // instead of the field, which otherwise throws while parsing.
@@ -988,6 +998,31 @@ async function buildDocxBlob(doc: ReportDocument, forPreview = false): Promise<B
     bottom: cmToTwip(s.marginBottom),
   }
 
+  // TOC entry styling: Word generates the entry lines and applies its built-in
+  // TOC1–TOC3 paragraph styles. Redefine those styles so the user's formatting
+  // (font, size, bold, line spacing, colour) carries to the generated entries.
+  const tocBlock = doc.blocks.find((b): b is Extract<ReportBlock, { type: 'toc' }> => b.type === 'toc')
+  const tocParagraphStyles = tocBlock
+    ? [1, 2, 3].map((lvl) => ({
+        id: `TOC${lvl}`,
+        name: `toc ${lvl}`,
+        basedOn: 'Normal',
+        quickFormat: true,
+        run: {
+          font: tocBlock.fontFamily ?? cfg.name,
+          size: tocBlock.fontSize ? ptToHalfPt(tocBlock.fontSize) : cfg.size,
+          bold: tocBlock.bold ?? false,
+          color: tocBlock.color,
+        },
+        paragraph: {
+          spacing: {
+            line: Math.round((tocBlock.lineSpacing ?? cfg.lineSpacing) * 240),
+            lineRule: 'auto' as never,
+          },
+        },
+      }))
+    : []
+
   // Title page is its own section so the body starts on a fresh page WITHOUT
   // an extra empty paragraph. The body section uses nextPage to break cleanly.
   const docxDoc = new Document({
@@ -1002,6 +1037,7 @@ async function buildDocxBlob(doc: ReportDocument, forPreview = false): Promise<B
           },
         },
       },
+      paragraphStyles: tocParagraphStyles,
     },
     sections: [
       {

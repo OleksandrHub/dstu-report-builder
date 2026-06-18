@@ -108,6 +108,14 @@ export interface TocBlock {
   id: string
   type: 'toc'
   title?: string // heading shown above the table of contents (default "Зміст")
+  // Formatting — applies to the "Зміст" title AND the generated entry lines
+  // (entries via Word's TOC1–TOC3 paragraph styles).
+  bold?: boolean
+  align?: 'left' | 'center' | 'right' | 'justify'
+  fontSize?: number    // pt
+  fontFamily?: string
+  lineSpacing?: number
+  color?: string       // hex without '#'
 }
 
 export interface ListItem {

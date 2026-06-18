@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TocBlock } from '../../types/document'
+import BlockStyleRow from './BlockStyleRow.vue'
 
 const props = defineProps<{ block: TocBlock }>()
 const emit = defineEmits<{
@@ -31,6 +32,7 @@ const emit = defineEmits<{
         placeholder="Зміст"
       />
     </div>
+    <BlockStyleRow :block="props.block" default-align="center" @update="emit('update', $event)" />
     <p class="block-hint">
       Збирається автоматично із заголовків (H1–H3).
       Номери сторінок — це поля: <b>Word</b> оновлює сам при відкритті;
