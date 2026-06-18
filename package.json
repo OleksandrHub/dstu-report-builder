@@ -16,6 +16,7 @@
   "dependencies": {
     "@harbour-enterprises/superdoc": "^1.41.0",
     "docx": "^9.7.1",
+    "katex": "^0.17.0",
     "mathml2omml": "^0.5.0",
     "pinia": "^3.0.4",
     "temml": "^0.13.3",

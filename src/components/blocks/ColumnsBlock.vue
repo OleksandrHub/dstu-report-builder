@@ -1,0 +1,73 @@
+<script setup lang="ts">
+import type { ColumnsBlock, ReportBlock } from '../../types/document'
+import { useReportStore } from '../../stores/report'
+
+const props = defineProps<{ block: ColumnsBlock }>()
+const emit = defineEmits<{
+  update: [data: Partial<ColumnsBlock>]
+  remove: []
+  moveUp: []
+  moveDown: []
+}>()
+
+const store = useReportStore()
+
+function innerText(b: ReportBlock): string {
+  return b.type === 'paragraph' || b.type === 'heading' ? b.text : ''
+}
+</script>
+
+<template>
+  <div class="block columns-block">
+    <div class="block-toolbar">
+      <span class="block-type-label">▥ Стовпці ({{ props.block.columns.length }})</span>
+      <div class="block-actions">
+        <button @click="emit('moveUp')" title="Вгору">↑</button>
+        <button @click="emit('moveDown')" title="Вниз">↓</button>
+        <button @click="emit('remove')" class="btn-danger" title="Видалити">✕</button>
+      </div>
+    </div>
+
+    <div class="block-style-row">
+      <span class="style-label">Кількість:</span>
+      <button
+        v-for="n in [2, 3, 4]"
+        :key="n"
+        :class="['style-btn', { active: props.block.columns.length === n }]"
+        @click="store.setColumnCount(props.block.id, n)"
+      >{{ n }}</button>
+    </div>
+
+    <div class="columns-editor">
+      <div v-for="col in props.block.columns" :key="col.id" class="column-edit">
+        <div class="column-head">
+          <span class="style-label">Ширина %:</span>
+          <input
+            type="number" min="5" max="95" step="1" class="style-number"
+            :value="col.width"
+            @input="store.setColumnWidth(props.block.id, col.id, parseInt(($event.target as HTMLInputElement).value) || 50)"
+          />
+        </div>
+
+        <div v-for="inner in col.blocks" :key="inner.id" class="column-inner">
+          <textarea
+            v-if="inner.type === 'paragraph' || inner.type === 'heading'"
+            class="block-textarea"
+            rows="2"
+            :value="innerText(inner)"
+            @input="store.updateColumnBlock(props.block.id, col.id, inner.id, { text: ($event.target as HTMLTextAreaElement).value } as never)"
+            :placeholder="inner.type === 'heading' ? 'Заголовок…' : 'Текст…'"
+          />
+          <div v-else class="block-hint">[{{ inner.type }}]</div>
+          <button class="btn-icon btn-danger column-inner-del" @click="store.removeColumnBlock(props.block.id, col.id, inner.id)">✕</button>
+        </div>
+
+        <div class="column-add">
+          <button class="btn-small" @click="store.addColumnBlock(props.block.id, col.id, 'paragraph')">+ Абзац</button>
+          <button class="btn-small" @click="store.addColumnBlock(props.block.id, col.id, 'heading')">+ Заголовок</button>
+        </div>
+      </div>
+    </div>
+    <p class="block-hint">Стовпці рендеряться як таблиця без рамок. Підтримуються абзаци й заголовки.</p>
+  </div>
+</template>

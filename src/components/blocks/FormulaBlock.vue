@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import temml from 'temml'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 import type { FormulaBlock } from '../../types/document'
 import MarkerHint from './MarkerHint.vue'
 
@@ -18,7 +19,9 @@ const previewError = ref('')
 function renderPreview() {
   previewError.value = ''
   try {
-    previewHtml.value = temml.renderToString(props.block.latex || '', { throwOnError: true })
+    previewHtml.value = katex.renderToString(props.block.latex || '', {
+      throwOnError: true, displayMode: true, output: 'html',
+    })
   } catch (e) {
     previewError.value = (e as Error)?.message ?? 'Помилка формули'
     previewHtml.value = ''

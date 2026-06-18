@@ -25,14 +25,22 @@ export interface DocumentSettings {
   footer: HeaderFooterConfig
   differentFirstPage: boolean // title page gets a separate (empty) header/footer
   pageNumberStart: number // number assigned to the very first (title) page
-  numberingScheme: NumberingScheme // how figures/tables/listings/formulas are numbered
+  numbering: NumberingSchemes // per-type numbering schemes
   formulaPrefix: string
 }
 
 // 'plain'      → 1, 2, 3 (continuous, ignores sections)
-// 'perSection' → 1.1, 1.2, 1.3 (resets per H2 section but does NOT renumber chapters)
+// 'perSection' → 1.1, 1.2, 1.3 (chapter fixed at 1, item runs continuously)
 // 'sectioned'  → 1.1, 1.2 … 2.1 (H2 = chapter N, item = N.k)
 export type NumberingScheme = 'plain' | 'perSection' | 'sectioned'
+
+// Each numbered object type can use its own scheme.
+export interface NumberingSchemes {
+  image: NumberingScheme
+  table: NumberingScheme
+  code: NumberingScheme
+  formula: NumberingScheme
+}
 
 export interface TitlePageData {
   ministry: string
@@ -215,6 +223,41 @@ export interface FormulaBlock {
   numbered?: boolean         // show equation number on the right (default true)
 }
 
+export type SourceType = 'book' | 'article' | 'electronic'
+
+export interface SourceEntry {
+  id: string
+  type: SourceType
+  authors: string      // "Прізвище І. П., Прізвище І. П."
+  title: string        // назва праці
+  city: string         // місто видання
+  publisher: string    // видавництво (для книги)
+  year: string
+  pages: string        // "256 с." для книги; "С. 12–20." для статті
+  journal: string      // назва журналу/збірника (для статті)
+  url: string          // для електронного ресурсу
+  accessDate: string   // дата звернення (для електронного ресурсу)
+}
+
+export interface SourcesBlock {
+  id: string
+  type: 'sources'
+  title?: string       // heading shown above the list (default "Список використаних джерел")
+  entries: SourceEntry[]
+}
+
+export interface DocColumn {
+  id: string
+  width: number         // relative width in % (columns should sum ~100)
+  blocks: ReportBlock[] // nested blocks rendered in this column
+}
+
+export interface ColumnsBlock {
+  id: string
+  type: 'columns'
+  columns: DocColumn[]
+}
+
 export type ReportBlock =
   | ParagraphBlock
   | HeadingBlock
@@ -226,6 +269,42 @@ export type ReportBlock =
   | PageBreakBlock
   | SpacerBlock
   | TocBlock
+  | SourcesBlock
+  | ColumnsBlock
+
+// Format one source entry per ДСТУ 8302:2015 (simplified).
+export function formatSourceDSTU(e: SourceEntry): string {
+  const dash = '–'
+  const parts: string[] = []
+  const authors = e.authors.trim()
+  const title = e.title.trim()
+
+  if (e.type === 'book') {
+    // Автори. Назва. Місто : Видавництво, Рік. Сторінки.
+    if (authors) parts.push(authors.endsWith('.') ? authors : authors + '.')
+    if (title) parts.push(title.endsWith('.') ? title : title + '.')
+    const imprint = [e.city.trim(), e.publisher.trim()].filter(Boolean).join(' : ')
+    const tail = [imprint, e.year.trim()].filter(Boolean).join(', ')
+    if (tail) parts.push(tail + '.')
+    if (e.pages.trim()) parts.push(e.pages.trim().endsWith('.') ? e.pages.trim() : e.pages.trim() + '.')
+  } else if (e.type === 'article') {
+    // Автори. Назва статті. Назва журналу. Рік. Сторінки.
+    if (authors) parts.push(authors.endsWith('.') ? authors : authors + '.')
+    if (title) parts.push(title.endsWith('.') ? title : title + '.')
+    if (e.journal.trim()) parts.push(`${e.journal.trim()}.`)
+    if (e.year.trim()) parts.push(`${e.year.trim()}.`)
+    if (e.pages.trim()) parts.push(e.pages.trim().endsWith('.') ? e.pages.trim() : e.pages.trim() + '.')
+  } else {
+    // Електронний ресурс: Автори. Назва. URL: ... (дата звернення: ...).
+    if (authors) parts.push(authors.endsWith('.') ? authors : authors + '.')
+    if (title) parts.push(title.endsWith('.') ? title : title + '.')
+    if (e.url.trim()) {
+      const acc = e.accessDate.trim() ? ` (дата звернення: ${e.accessDate.trim()}).` : ''
+      parts.push(`URL: ${e.url.trim()}${acc}`)
+    }
+  }
+  return parts.join(' ').replace(/—/g, dash)
+}
 
 // ===== Title page block system =====
 
@@ -300,7 +379,7 @@ export const DEFAULT_SETTINGS: DocumentSettings = {
   footer: { mode: 'pageNumber', text: '', align: 'center', fontSize: 12, fontFamily: 'Times New Roman' },
   differentFirstPage: true,
   pageNumberStart: 1,
-  numberingScheme: 'plain',
+  numbering: { image: 'plain', table: 'plain', code: 'plain', formula: 'plain' },
   formulaPrefix: 'Формула',
 }
 

@@ -16,6 +16,9 @@ import FormulaBlockEditor from '../components/blocks/FormulaBlock.vue'
 import PageBreakBlock from '../components/blocks/PageBreakBlock.vue'
 import SpacerBlock from '../components/blocks/SpacerBlock.vue'
 import TocBlock from '../components/blocks/TocBlock.vue'
+import SourcesBlock from '../components/blocks/SourcesBlock.vue'
+import ColumnsBlock from '../components/blocks/ColumnsBlock.vue'
+import TextToolsBar from '../components/blocks/TextToolsBar.vue'
 import TitlePageEditor from '../components/editor/TitlePageEditor.vue'
 import TitleTemplateEditor from '../components/editor/TitleTemplateEditor.vue'
 import SettingsEditor from '../components/editor/SettingsEditor.vue'
@@ -138,6 +141,7 @@ watch(doc, scheduleRender, { deep: true })
         <SettingsEditor v-else-if="leftTab === 'settings'" />
 
         <div v-else-if="leftTab === 'blocks'" class="blocks-editor">
+          <TextToolsBar />
           <div v-if="doc && doc.blocks.length === 0" class="empty-blocks-hint">
             Документ порожній. Додай перший блок нижче.
           </div>
@@ -227,6 +231,22 @@ watch(doc, scheduleRender, { deep: true })
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
+              <SourcesBlock
+                v-else-if="block.type === 'sources'"
+                :block="block"
+                @update="onUpdateBlock(block.id, $event)"
+                @remove="store.removeBlock(block.id)"
+                @move-up="store.moveBlock(block.id, 'up')"
+                @move-down="store.moveBlock(block.id, 'down')"
+              />
+              <ColumnsBlock
+                v-else-if="block.type === 'columns'"
+                :block="block"
+                @update="onUpdateBlock(block.id, $event)"
+                @remove="store.removeBlock(block.id)"
+                @move-up="store.moveBlock(block.id, 'up')"
+                @move-down="store.moveBlock(block.id, 'down')"
+              />
             </template>
           </template>
 
@@ -241,6 +261,8 @@ watch(doc, scheduleRender, { deep: true })
               <button @click="store.addBlock('table')">⊞ Таблиця</button>
               <button @click="store.addBlock('formula')">∑ Формула</button>
               <button @click="store.addBlock('toc')">☰ Зміст</button>
+              <button @click="store.addBlock('sources')">📚 Джерела</button>
+              <button @click="store.addBlock('columns')">▥ Стовпці</button>
               <button @click="store.addBlock('pageBreak')">⤓ Нова сторінка</button>
               <button @click="store.addBlock('spacer')">↵ Порожній рядок</button>
             </div>

@@ -11,6 +11,9 @@ import type {
   TitleSpacerBlock,
   TitlePageTemplate,
   TitleDataTemplate,
+  SourceEntry,
+  SourcesBlock,
+  ColumnsBlock,
 } from '../types/document'
 import {
   DEFAULT_SETTINGS,
@@ -26,6 +29,15 @@ const ACTIVE_DOC_KEY = 'dstu-report-builder-active'
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
+}
+
+function emptySourceEntry(): SourceEntry {
+  return {
+    id: generateId(),
+    type: 'book',
+    authors: '', title: '', city: '', publisher: '', year: '',
+    pages: '', journal: '', url: '', accessDate: '',
+  }
 }
 
 function deepCloneTitleBlocks(blocks: TitleBlock[]): TitleBlock[] {
@@ -125,8 +137,10 @@ export const useReportStore = defineStore('report', () => {
     if (doc.settings && doc.settings.pageNumberStart === undefined) {
       doc.settings.pageNumberStart = 1
     }
-    if (doc.settings && doc.settings.numberingScheme === undefined) {
-      doc.settings.numberingScheme = 'plain'
+    if (doc.settings && !doc.settings.numbering) {
+      // migrate old single numberingScheme → per-type, default 'plain'
+      const old = (doc.settings as { numberingScheme?: 'plain' | 'perSection' | 'sectioned' }).numberingScheme ?? 'plain'
+      doc.settings.numbering = { image: old, table: old, code: old, formula: old }
     }
     if (doc.settings && doc.settings.formulaPrefix === undefined) {
       doc.settings.formulaPrefix = 'Формула'
@@ -327,8 +341,24 @@ export const useReportStore = defineStore('report', () => {
       block = { id: generateId(), type: 'pageBreak' }
     } else if (type === 'spacer') {
       block = { id: generateId(), type: 'spacer', lines: 1 }
-    } else {
+    } else if (type === 'toc') {
       block = { id: generateId(), type: 'toc', title: 'Зміст' }
+    } else if (type === 'sources') {
+      block = {
+        id: generateId(),
+        type: 'sources',
+        title: 'Список використаних джерел',
+        entries: [emptySourceEntry()],
+      }
+    } else {
+      block = {
+        id: generateId(),
+        type: 'columns',
+        columns: [
+          { id: generateId(), width: 50, blocks: [{ id: generateId(), type: 'paragraph', text: 'Текст лівого стовпця...' }] },
+          { id: generateId(), width: 50, blocks: [{ id: generateId(), type: 'paragraph', text: 'Текст правого стовпця...' }] },
+        ],
+      }
     }
 
     if (afterId) {
@@ -356,6 +386,59 @@ export const useReportStore = defineStore('report', () => {
     ]
     doc.blocks = [...introBlocks, ...doc.blocks]
     touchActive()
+  }
+
+  // Apply a string transform to every user-editable text field across all blocks.
+  // Returns the number of fields changed.
+  function transformAllText(fn: (s: string) => string): number {
+    const doc = activeDocument.value
+    if (!doc) return 0
+    let changed = 0
+    const apply = (s: string | undefined): string | undefined => {
+      if (s == null) return s
+      const out = fn(s)
+      if (out !== s) changed++
+      return out
+    }
+    for (const b of doc.blocks) {
+      if (b.type === 'paragraph' || b.type === 'heading') {
+        b.text = apply(b.text)!
+      } else if (b.type === 'list') {
+        if (b.introText !== undefined) b.introText = apply(b.introText)
+        b.items.forEach(i => { i.text = apply(i.text)! })
+      } else if (b.type === 'code') {
+        b.caption = apply(b.caption)!
+        b.code = apply(b.code)!
+        b.referenceText = apply(b.referenceText)
+      } else if (b.type === 'image') {
+        b.caption = apply(b.caption)!
+        b.referenceText = apply(b.referenceText)
+      } else if (b.type === 'table') {
+        b.caption = apply(b.caption)!
+        b.referenceText = apply(b.referenceText)
+        b.headers = b.headers.map(h => apply(h)!)
+        b.rows.forEach(r => r.cells.forEach(c => { c.text = apply(c.text)! }))
+      } else if (b.type === 'formula') {
+        if (b.caption !== undefined) b.caption = apply(b.caption)
+        b.referenceText = apply(b.referenceText)
+      } else if (b.type === 'toc') {
+        if (b.title !== undefined) b.title = apply(b.title)
+      }
+    }
+    if (changed) touchActive()
+    return changed
+  }
+
+  function replaceAllText(find: string, replace: string, caseSensitive = false): number {
+    if (!find) return 0
+    const flags = caseSensitive ? 'g' : 'gi'
+    const re = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags)
+    return transformAllText(s => s.replace(re, replace))
+  }
+
+  // Replace em dash (—) and hyphen-minus used as dashes with the en dash (–).
+  function emDashToEnDash(): number {
+    return transformAllText(s => s.replace(/—/g, '–'))
   }
 
   function removeBlock(id: string) {
@@ -523,6 +606,120 @@ export const useReportStore = defineStore('report', () => {
     touchActive()
   }
 
+  // --- Sources (ДСТУ) helpers ---
+
+  function findSourcesBlock(blockId: string): SourcesBlock | null {
+    const doc = activeDocument.value
+    if (!doc) return null
+    const b = doc.blocks.find(x => x.id === blockId)
+    return b && b.type === 'sources' ? b : null
+  }
+
+  function addSource(blockId: string) {
+    const b = findSourcesBlock(blockId)
+    if (!b) return
+    b.entries.push(emptySourceEntry())
+    touchActive()
+  }
+
+  function removeSource(blockId: string, entryId: string) {
+    const b = findSourcesBlock(blockId)
+    if (!b) return
+    b.entries = b.entries.filter(e => e.id !== entryId)
+    touchActive()
+  }
+
+  function updateSource(blockId: string, entryId: string, data: Partial<SourceEntry>) {
+    const b = findSourcesBlock(blockId)
+    if (!b) return
+    const e = b.entries.find(x => x.id === entryId)
+    if (!e) return
+    Object.assign(e, data)
+    touchActive()
+  }
+
+  function moveSource(blockId: string, entryId: string, dir: 'up' | 'down') {
+    const b = findSourcesBlock(blockId)
+    if (!b) return
+    const i = b.entries.findIndex(e => e.id === entryId)
+    if (i === -1) return
+    const j = dir === 'up' ? i - 1 : i + 1
+    if (j < 0 || j >= b.entries.length) return
+    const tmp = b.entries[i]!
+    b.entries[i] = b.entries[j]!
+    b.entries[j] = tmp
+    touchActive()
+  }
+
+  // --- Columns helpers ---
+
+  function findColumnsBlock(blockId: string): ColumnsBlock | null {
+    const doc = activeDocument.value
+    if (!doc) return null
+    const b = doc.blocks.find(x => x.id === blockId)
+    return b && b.type === 'columns' ? b : null
+  }
+
+  function setColumnCount(blockId: string, count: number) {
+    const b = findColumnsBlock(blockId)
+    if (!b) return
+    const n = Math.max(1, Math.min(4, count))
+    const cur = b.columns.length
+    if (n > cur) {
+      for (let i = cur; i < n; i++) {
+        b.columns.push({ id: generateId(), width: 0, blocks: [{ id: generateId(), type: 'paragraph', text: '' }] })
+      }
+    } else if (n < cur) {
+      b.columns = b.columns.slice(0, n)
+    }
+    // Even widths.
+    const w = Math.round(100 / n)
+    b.columns.forEach(c => { c.width = w })
+    touchActive()
+  }
+
+  function setColumnWidth(blockId: string, colId: string, width: number) {
+    const b = findColumnsBlock(blockId)
+    if (!b) return
+    const c = b.columns.find(x => x.id === colId)
+    if (!c) return
+    c.width = width
+    touchActive()
+  }
+
+  function addColumnBlock(blockId: string, colId: string, type: ReportBlock['type']) {
+    const b = findColumnsBlock(blockId)
+    if (!b) return
+    const col = b.columns.find(x => x.id === colId)
+    if (!col) return
+    let nb: ReportBlock
+    if (type === 'heading') nb = { id: generateId(), type: 'heading', text: 'Заголовок', level: 2 }
+    else if (type === 'image') nb = { id: generateId(), type: 'image', src: '', caption: 'Назва рисунка', referenceText: '' }
+    else nb = { id: generateId(), type: 'paragraph', text: 'Текст...' }
+    col.blocks.push(nb)
+    touchActive()
+  }
+
+  function updateColumnBlock(blockId: string, colId: string, innerId: string, data: Partial<ReportBlock>) {
+    const b = findColumnsBlock(blockId)
+    if (!b) return
+    const col = b.columns.find(x => x.id === colId)
+    if (!col) return
+    const idx = col.blocks.findIndex(x => x.id === innerId)
+    if (idx === -1) return
+    col.blocks[idx] = { ...col.blocks[idx], ...data } as ReportBlock
+    touchActive()
+  }
+
+  function removeColumnBlock(blockId: string, colId: string, innerId: string) {
+    const b = findColumnsBlock(blockId)
+    if (!b) return
+    const col = b.columns.find(x => x.id === colId)
+    if (!col) return
+    col.blocks = col.blocks.filter(x => x.id !== innerId)
+    touchActive()
+  }
+
   function getBlockIndex(blockId: string, type: ReportBlock['type']): number {
     const doc = activeDocument.value
     if (!doc) return 0
@@ -663,6 +860,17 @@ export const useReportStore = defineStore('report', () => {
     updateSettings,
     addBlock,
     addIntroBlocks,
+    replaceAllText,
+    emDashToEnDash,
+    addSource,
+    removeSource,
+    updateSource,
+    moveSource,
+    setColumnCount,
+    setColumnWidth,
+    addColumnBlock,
+    updateColumnBlock,
+    removeColumnBlock,
     removeBlock,
     moveBlock,
     updateBlock,

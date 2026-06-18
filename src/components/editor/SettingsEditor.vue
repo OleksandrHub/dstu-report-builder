@@ -1,12 +1,25 @@
 <script setup lang="ts">
 import { useReportStore } from '../../stores/report'
 import { computed } from 'vue'
+import type { NumberingSchemes } from '../../types/document'
 
 const store = useReportStore()
 const s = computed(() => store.activeDocument?.settings)
 
 function update(field: string, value: string | number) {
   store.updateSettings({ [field]: value } as never)
+}
+
+const numberingTypes: { key: keyof NumberingSchemes; label: string }[] = [
+  { key: 'image', label: 'Рисунки' },
+  { key: 'table', label: 'Таблиці' },
+  { key: 'code', label: 'Лістинги' },
+  { key: 'formula', label: 'Формули' },
+]
+
+function updateNumbering(key: keyof NumberingSchemes, value: string) {
+  if (!s.value) return
+  store.updateSettings({ numbering: { ...s.value.numbering, [key]: value } } as never)
 }
 
 function updateHF(which: 'header' | 'footer', field: string, value: string | number) {
@@ -116,13 +129,17 @@ const hfModes = [
       <input class="field-input" :value="s.formulaPrefix" @input="update('formulaPrefix', ($event.target as HTMLInputElement).value)" />
     </div>
 
-    <h4 class="subsection-title">Нумерація рисунків / таблиць / формул</h4>
-    <div class="field-group">
-      <label>Схема</label>
-      <select class="field-input" :value="s.numberingScheme" @change="update('numberingScheme', ($event.target as HTMLSelectElement).value)">
-        <option value="plain">Класична: 1, 2, 3 (ігнорувати розділи)</option>
-        <option value="perSection">З номером глави: 1.1, 1.2, 1.3 (без зміни глави)</option>
-        <option value="sectioned">За розділами: 1.1 … 2.1 (H2 = розділ)</option>
+    <h4 class="subsection-title">Нумерація (для кожного типу окремо)</h4>
+    <div v-for="nt in numberingTypes" :key="nt.key" class="field-group">
+      <label>{{ nt.label }}</label>
+      <select
+        class="field-input"
+        :value="s.numbering[nt.key]"
+        @change="updateNumbering(nt.key, ($event.target as HTMLSelectElement).value)"
+      >
+        <option value="plain">1, 2, 3 (ігнорувати розділи)</option>
+        <option value="perSection">1.1, 1.2, 1.3 (без зміни глави)</option>
+        <option value="sectioned">1.1 … 2.1 (H2 = розділ)</option>
       </select>
     </div>
 
