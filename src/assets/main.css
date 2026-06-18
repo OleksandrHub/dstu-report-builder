@@ -295,6 +295,15 @@ body {
   font-size: 12px;
   text-align: center;
 }
+.style-color {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-input-bg);
+  cursor: pointer;
+}
 .style-label { font-size: 11px; color: var(--color-text-muted); }
 .style-unit { font-size: 11px; color: var(--color-text-muted); margin-left: -4px; }
 
@@ -886,6 +895,21 @@ h3.preview-heading { font-size: 1em; }
   margin-bottom: 8px;
 }
 .md-error { color: #ff8888; }
+
+/* Formula preview */
+.formula-preview {
+  background: #fff;
+  color: #000;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 12px;
+  text-align: center;
+  overflow-x: auto;
+  min-height: 40px;
+  font-size: 18px;
+}
+.formula-preview math { font-size: 1.1em; }
+.simple-block .block-hint { margin: 0; }
 
 .vars-hint { background: var(--color-input-bg); border: 1px solid var(--color-border); border-radius: var(--radius); padding: 8px; }
 .vars-label { font-size: 11px; color: var(--color-text-muted); display: block; margin-bottom: 5px; }

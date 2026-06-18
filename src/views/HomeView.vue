@@ -12,6 +12,10 @@ import ListBlockEditor from '../components/blocks/ListBlock.vue'
 import CodeBlockEditor from '../components/blocks/CodeBlock.vue'
 import ImageBlockEditor from '../components/blocks/ImageBlock.vue'
 import TableBlockEditor from '../components/blocks/TableBlock.vue'
+import FormulaBlockEditor from '../components/blocks/FormulaBlock.vue'
+import PageBreakBlock from '../components/blocks/PageBreakBlock.vue'
+import SpacerBlock from '../components/blocks/SpacerBlock.vue'
+import TocBlock from '../components/blocks/TocBlock.vue'
 import TitlePageEditor from '../components/editor/TitlePageEditor.vue'
 import TitleTemplateEditor from '../components/editor/TitleTemplateEditor.vue'
 import SettingsEditor from '../components/editor/SettingsEditor.vue'
@@ -191,6 +195,38 @@ watch(doc, scheduleRender, { deep: true })
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
+              <FormulaBlockEditor
+                v-else-if="block.type === 'formula'"
+                :block="block"
+                :index="store.getBlockIndex(block.id, 'formula')"
+                @update="onUpdateBlock(block.id, $event)"
+                @remove="store.removeBlock(block.id)"
+                @move-up="store.moveBlock(block.id, 'up')"
+                @move-down="store.moveBlock(block.id, 'down')"
+              />
+              <PageBreakBlock
+                v-else-if="block.type === 'pageBreak'"
+                :block="block"
+                @remove="store.removeBlock(block.id)"
+                @move-up="store.moveBlock(block.id, 'up')"
+                @move-down="store.moveBlock(block.id, 'down')"
+              />
+              <SpacerBlock
+                v-else-if="block.type === 'spacer'"
+                :block="block"
+                @update="onUpdateBlock(block.id, $event)"
+                @remove="store.removeBlock(block.id)"
+                @move-up="store.moveBlock(block.id, 'up')"
+                @move-down="store.moveBlock(block.id, 'down')"
+              />
+              <TocBlock
+                v-else-if="block.type === 'toc'"
+                :block="block"
+                @update="onUpdateBlock(block.id, $event)"
+                @remove="store.removeBlock(block.id)"
+                @move-up="store.moveBlock(block.id, 'up')"
+                @move-down="store.moveBlock(block.id, 'down')"
+              />
             </template>
           </template>
 
@@ -203,6 +239,10 @@ watch(doc, scheduleRender, { deep: true })
               <button @click="store.addBlock('code')">{ } Код</button>
               <button @click="store.addBlock('image')">🖼 Рисунок</button>
               <button @click="store.addBlock('table')">⊞ Таблиця</button>
+              <button @click="store.addBlock('formula')">∑ Формула</button>
+              <button @click="store.addBlock('toc')">☰ Зміст</button>
+              <button @click="store.addBlock('pageBreak')">⤓ Нова сторінка</button>
+              <button @click="store.addBlock('spacer')">↵ Порожній рядок</button>
             </div>
             <button class="btn-intro-blocks" @click="store.addIntroBlocks()">
               + Тема / Мета / Висновки / Виконання / Варіант

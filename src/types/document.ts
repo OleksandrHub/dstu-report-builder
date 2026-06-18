@@ -25,7 +25,14 @@ export interface DocumentSettings {
   footer: HeaderFooterConfig
   differentFirstPage: boolean // title page gets a separate (empty) header/footer
   pageNumberStart: number // number assigned to the very first (title) page
+  numberingScheme: NumberingScheme // how figures/tables/listings/formulas are numbered
+  formulaPrefix: string
 }
+
+// 'plain'      → 1, 2, 3 (continuous, ignores sections)
+// 'perSection' → 1.1, 1.2, 1.3 (resets per H2 section but does NOT renumber chapters)
+// 'sectioned'  → 1.1, 1.2 … 2.1 (H2 = chapter N, item = N.k)
+export type NumberingScheme = 'plain' | 'perSection' | 'sectioned'
 
 export interface TitlePageData {
   ministry: string
@@ -53,6 +60,7 @@ export interface ParagraphBlock {
   fontFamily?: string // overrides doc default
   lineSpacing?: number // overrides doc default
   indent?: number     // cm, first-line indent override (overrides doc default)
+  color?: string      // hex without '#', e.g. 'FF0000'
 }
 
 export interface HeadingBlock {
@@ -60,6 +68,30 @@ export interface HeadingBlock {
   type: 'heading'
   text: string
   level: 1 | 2 | 3
+  bold?: boolean
+  align?: 'left' | 'center' | 'right' | 'justify'
+  fontSize?: number
+  fontFamily?: string
+  lineSpacing?: number
+  indent?: number     // cm, first-line indent
+  color?: string      // hex without '#'
+}
+
+export interface PageBreakBlock {
+  id: string
+  type: 'pageBreak'
+}
+
+export interface SpacerBlock {
+  id: string
+  type: 'spacer'
+  lines?: number // number of empty lines (default 1)
+}
+
+export interface TocBlock {
+  id: string
+  type: 'toc'
+  title?: string // heading shown above the table of contents (default "Зміст")
 }
 
 export interface ListItem {
@@ -173,6 +205,16 @@ export function parseMarkdownTable(md: string): ParsedMarkdownTable | null {
   return { headers, rows }
 }
 
+export interface FormulaBlock {
+  id: string
+  type: 'formula'
+  latex: string
+  caption?: string          // optional caption like a listing
+  referenceText?: string    // optional in-text reference ("...у формулі {no}.")
+  inlineReference?: boolean
+  numbered?: boolean         // show equation number on the right (default true)
+}
+
 export type ReportBlock =
   | ParagraphBlock
   | HeadingBlock
@@ -180,6 +222,10 @@ export type ReportBlock =
   | CodeBlock
   | ImageBlock
   | TableBlock
+  | FormulaBlock
+  | PageBreakBlock
+  | SpacerBlock
+  | TocBlock
 
 // ===== Title page block system =====
 
@@ -254,6 +300,8 @@ export const DEFAULT_SETTINGS: DocumentSettings = {
   footer: { mode: 'pageNumber', text: '', align: 'center', fontSize: 12, fontFamily: 'Times New Roman' },
   differentFirstPage: true,
   pageNumberStart: 1,
+  numberingScheme: 'plain',
+  formulaPrefix: 'Формула',
 }
 
 export const DEFAULT_TITLE_PAGE: TitlePageData = {

@@ -125,6 +125,12 @@ export const useReportStore = defineStore('report', () => {
     if (doc.settings && doc.settings.pageNumberStart === undefined) {
       doc.settings.pageNumberStart = 1
     }
+    if (doc.settings && doc.settings.numberingScheme === undefined) {
+      doc.settings.numberingScheme = 'plain'
+    }
+    if (doc.settings && doc.settings.formulaPrefix === undefined) {
+      doc.settings.formulaPrefix = 'Формула'
+    }
   }
 
   // Migrate: append {no} placeholder to legacy referenceText (so number isn't auto-doubled)
@@ -297,7 +303,7 @@ export const useReportStore = defineStore('report', () => {
         caption: 'Назва рисунка',
         referenceText: 'Результат роботи програми наведено на рисунку {no}.',
       }
-    } else {
+    } else if (type === 'table') {
       block = {
         id: generateId(),
         type: 'table',
@@ -308,6 +314,21 @@ export const useReportStore = defineStore('report', () => {
         ],
         referenceText: 'Дані наведено у таблиці {no}.',
       }
+    } else if (type === 'formula') {
+      block = {
+        id: generateId(),
+        type: 'formula',
+        latex: 'E = mc^2',
+        caption: '',
+        referenceText: '',
+        numbered: true,
+      }
+    } else if (type === 'pageBreak') {
+      block = { id: generateId(), type: 'pageBreak' }
+    } else if (type === 'spacer') {
+      block = { id: generateId(), type: 'spacer', lines: 1 }
+    } else {
+      block = { id: generateId(), type: 'toc', title: 'Зміст' }
     }
 
     if (afterId) {

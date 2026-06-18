@@ -11,6 +11,7 @@ import {
   WidthType,
   BorderStyle,
   ImageRun,
+  PageBreak,
   Header,
   Footer,
   SimpleField,
@@ -36,6 +37,7 @@ interface FontConfig {
   size: number // half-points
   lineSpacing: number
   paragraphIndent: number // cm
+  color?: string // hex without '#'
 }
 
 interface RunStyle {
@@ -53,6 +55,7 @@ function styledRun(text: string, cfg: FontConfig, st: RunStyle): TextRun {
     bold: st.bold,
     italics: st.italic,
     underline: st.underline ? {} : undefined,
+    color: cfg.color,
   })
 }
 
@@ -120,10 +123,14 @@ function emptyParagraph(cfg: FontConfig): Paragraph {
 }
 
 function captionParagraph(text: string, cfg: FontConfig, align: typeof AlignmentType[keyof typeof AlignmentType] = AlignmentType.LEFT): Paragraph {
+  // Left-aligned captions get the document's first-line indent (like body text,
+  // e.g. "Таблиця 1 – ..."). Right/center captions (e.g. continuation) don't.
+  const indent = align === AlignmentType.LEFT ? { firstLine: cmToTwip(cfg.paragraphIndent) } : undefined
   return new Paragraph({
     children: inlineRuns(text, cfg),
     alignment: align,
     spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+    indent,
   })
 }
 
@@ -131,6 +138,13 @@ const ALIGN_MAP: Record<string, typeof AlignmentType[keyof typeof AlignmentType]
   left: AlignmentType.LEFT,
   center: AlignmentType.CENTER,
   right: AlignmentType.RIGHT,
+}
+
+const ALIGN4_MAP: Record<string, typeof AlignmentType[keyof typeof AlignmentType]> = {
+  left: AlignmentType.LEFT,
+  center: AlignmentType.CENTER,
+  right: AlignmentType.RIGHT,
+  justify: AlignmentType.JUSTIFIED,
 }
 
 // Build the in-text reference sentence for a numbered object (code/image/table).
@@ -191,14 +205,9 @@ function buildBlock(
     if (block.fontFamily) pCfg.name = block.fontFamily
     if (block.lineSpacing !== undefined) pCfg.lineSpacing = block.lineSpacing
     if (block.indent !== undefined) pCfg.paragraphIndent = block.indent
+    if (block.color) pCfg.color = block.color
 
-    const alignMap: Record<string, typeof AlignmentType[keyof typeof AlignmentType]> = {
-      left: AlignmentType.LEFT,
-      center: AlignmentType.CENTER,
-      right: AlignmentType.RIGHT,
-      justify: AlignmentType.JUSTIFIED,
-    }
-    const alignment = alignMap[block.align ?? 'justify'] ?? AlignmentType.JUSTIFIED
+    const alignment = ALIGN4_MAP[block.align ?? 'justify'] ?? AlignmentType.JUSTIFIED
     const noIndent = block.align === 'center' || block.align === 'right'
 
     return [bodyParagraph(inlineRuns(block.text, pCfg, block.bold ?? false), pCfg, noIndent, alignment)]
@@ -210,14 +219,35 @@ function buildBlock(
       2: HeadingLevel.HEADING_2,
       3: HeadingLevel.HEADING_3,
     }
+    const hCfg = { ...cfg }
+    if (block.fontSize) hCfg.size = ptToHalfPt(block.fontSize)
+    if (block.fontFamily) hCfg.name = block.fontFamily
+    if (block.lineSpacing !== undefined) hCfg.lineSpacing = block.lineSpacing
+    if (block.indent !== undefined) hCfg.paragraphIndent = block.indent
+    if (block.color) hCfg.color = block.color
+
+    const hAlign = ALIGN4_MAP[block.align ?? 'center'] ?? AlignmentType.CENTER
+    const hBold = block.bold ?? true
+    const hIndent = block.indent !== undefined ? { firstLine: cmToTwip(block.indent) } : undefined
+
     return [
       new Paragraph({
-        children: inlineRuns(block.text, cfg, true),
+        children: inlineRuns(block.text, hCfg, hBold),
         heading: levelMap[block.level],
-        alignment: AlignmentType.CENTER,
-        spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+        alignment: hAlign,
+        spacing: { line: Math.round(hCfg.lineSpacing * 240), lineRule: 'auto' as never },
+        indent: hIndent,
       }),
     ]
+  }
+
+  if (block.type === 'pageBreak') {
+    return [new Paragraph({ children: [new PageBreak()] })]
+  }
+
+  if (block.type === 'spacer') {
+    const n = Math.max(1, block.lines ?? 1)
+    return Array.from({ length: n }, () => emptyParagraph(cfg))
   }
 
   if (block.type === 'list') {

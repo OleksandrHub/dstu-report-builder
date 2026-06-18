@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { HeadingBlock } from '../../types/document'
 import MarkerHint from './MarkerHint.vue'
+import BlockStyleRow from './BlockStyleRow.vue'
 
 const props = defineProps<{ block: HeadingBlock }>()
 const emit = defineEmits<{
@@ -36,5 +37,7 @@ const emit = defineEmits<{
       placeholder="Текст заголовка"
     />
     <MarkerHint />
+
+    <BlockStyleRow :block="props.block" default-align="center" @update="emit('update', $event)" />
   </div>
 </template>
