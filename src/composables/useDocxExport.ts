@@ -37,6 +37,10 @@ import { renderFormulaPng, type FormulaImage } from './useFormulaImage'
 
 const CM_TO_EMU = 914400 / 2.54
 
+// When true we're generating the in-app preview blob (SuperDoc), which can't
+// render certain fields (e.g. a TOC field) — we substitute simpler content.
+let previewMode = false
+
 function cmToTwip(cm: number): number {
   return convertInchesToTwip(cm / 2.54)
 }
@@ -537,15 +541,24 @@ function buildBlock(
 
   if (block.type === 'toc') {
     const title = block.title ?? 'Зміст'
+    const titlePara = new Paragraph({
+      children: inlineRuns(title, cfg, true),
+      alignment: AlignmentType.CENTER,
+      spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+    })
+    // The in-app preview (SuperDoc) can't render a TOC field — show a hint line
+    // instead of the field, which otherwise throws while parsing.
+    if (previewMode) {
+      return [
+        titlePara,
+        bodyParagraph([baseRun('(Зміст оновиться автоматично у Word / OnlyOffice)', cfg, false, true)], cfg, true),
+      ]
+    }
     // A real Word table-of-contents field, built from the Heading 1–3 styles.
     // Word/OnlyOffice populate and paginate it themselves (updateFields on open,
     // or Ctrl+A → F9). This is the standard mechanism, identical to Insert → TOC.
     return [
-      new Paragraph({
-        children: inlineRuns(title, cfg, true),
-        alignment: AlignmentType.CENTER,
-        spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
-      }),
+      titlePara,
       new TableOfContents(title, {
         hyperlink: true,
         headingStyleRange: '1-3',
@@ -900,7 +913,8 @@ function buildFooter(hf: HeaderFooterConfig, cachedPage: number): Footer | undef
   })
 }
 
-async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
+async function buildDocxBlob(doc: ReportDocument, forPreview = false): Promise<Blob> {
+  previewMode = forPreview
   const s = doc.settings
   const cfg: FontConfig = {
     name: s.fontFamily,
@@ -1034,7 +1048,7 @@ export function useDocxExport() {
   }
 
   async function getPreviewBlob(doc: ReportDocument): Promise<Blob> {
-    return buildDocxBlob(doc)
+    return buildDocxBlob(doc, true)
   }
 
   return { exportToDocx, getPreviewBlob }
