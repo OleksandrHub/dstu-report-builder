@@ -16,10 +16,15 @@ import {
   Footer,
   SimpleField,
   SectionType,
+  ImportedXmlComponent,
+  TableOfContents,
+  TabStopType,
   convertInchesToTwip,
   convertMillimetersToTwip,
 } from 'docx'
-import type { ReportDocument, ReportBlock, ListItem, TitleLineBlock, TitleSpacerBlock, TableRow as DocTableRow, HeaderFooterConfig } from '../types/document'
+import temml from 'temml'
+import { mml2omml } from 'mathml2omml'
+import type { ReportDocument, ReportBlock, ListItem, TitleLineBlock, TitleSpacerBlock, TableRow as DocTableRow, HeaderFooterConfig, NumberingScheme } from '../types/document'
 import { resolveTitleVars } from '../types/document'
 
 const CM_TO_EMU = 914400 / 2.54
@@ -147,15 +152,62 @@ const ALIGN4_MAP: Record<string, typeof AlignmentType[keyof typeof AlignmentType
   justify: AlignmentType.JUSTIFIED,
 }
 
+// ===== Caption numbering =====
+// Three schemes:
+//   plain      → 1, 2, 3            (continuous, ignores chapters)
+//   perSection → 1.1, 1.2, 1.3      (chapter fixed at 1, item runs continuously)
+//   sectioned  → 1.1 … 2.1          (chapter = H2 index, item resets each chapter)
+type NumKind = 'image' | 'code' | 'table' | 'formula'
+interface Counters {
+  scheme: NumberingScheme
+  chapter: number
+  items: Record<NumKind, number>          // for sectioned: per-chapter; else: continuous
+  bumpChapter(): void                       // call on every H2 heading
+  next(kind: NumKind): string               // returns the formatted number
+}
+
+function makeCounters(scheme: NumberingScheme): Counters {
+  return {
+    scheme,
+    chapter: scheme === 'perSection' ? 1 : 0,
+    items: { image: 0, code: 0, table: 0, formula: 0 },
+    bumpChapter() {
+      if (this.scheme === 'sectioned') {
+        this.chapter++
+        this.items = { image: 0, code: 0, table: 0, formula: 0 }
+      }
+    },
+    next(kind: NumKind): string {
+      this.items[kind]++
+      const m = this.items[kind]
+      if (this.scheme === 'plain') return String(m)
+      const ch = this.scheme === 'sectioned' ? Math.max(1, this.chapter) : 1
+      return `${ch}.${m}`
+    },
+  }
+}
+
 // Build the in-text reference sentence for a numbered object (code/image/table).
 // If the user's text contains the {no} placeholder, only substitute the number
 // (no auto prefix). Otherwise fall back to the legacy "<text> <prefix> <n>." format.
-function resolveReference(text: string | undefined, prefix: string, num: number): string {
+function resolveReference(text: string | undefined, prefix: string, num: string): string {
   if (!text) return ''
   if (text.includes('{no}')) {
-    return text.replace(/\{no\}/g, String(num))
+    return text.replace(/\{no\}/g, num)
   }
   return `${text} ${prefix.toLowerCase()} ${num}.`
+}
+
+// Convert a LaTeX string into an OMML element docx can embed. Returns null on
+// parse failure (caller falls back to plain text).
+function latexToOmml(latex: string): ImportedXmlComponent | null {
+  try {
+    const mathml = temml.renderToString(latex, { throwOnError: true })
+    const omml = mml2omml(mathml)
+    return ImportedXmlComponent.fromXmlString(omml)
+  } catch {
+    return null
+  }
 }
 
 function buildTitlePage(doc: ReportDocument, cfg: FontConfig): Paragraph[] {
@@ -194,9 +246,9 @@ function buildBlock(
   block: ReportBlock,
   doc: ReportDocument,
   cfg: FontConfig,
-  counters: { image: number; code: number; table: number },
+  counters: Counters,
   out: { inlineRef?: string } = {}
-): (Paragraph | Table)[] {
+): (Paragraph | Table | TableOfContents)[] {
   const s = doc.settings
 
   if (block.type === 'paragraph') {
@@ -214,6 +266,8 @@ function buildBlock(
   }
 
   if (block.type === 'heading') {
+    // H2 starts a new chapter (only matters for the 'sectioned' scheme).
+    if (block.level === 2) counters.bumpChapter()
     const levelMap: Record<number, typeof HeadingLevel[keyof typeof HeadingLevel]> = {
       1: HeadingLevel.HEADING_1,
       2: HeadingLevel.HEADING_2,
@@ -245,9 +299,73 @@ function buildBlock(
     return [new Paragraph({ children: [new PageBreak()] })]
   }
 
+  if (block.type === 'toc') {
+    const title = block.title ?? 'Зміст'
+    return [
+      new Paragraph({
+        children: inlineRuns(title, cfg, true),
+        alignment: AlignmentType.CENTER,
+        spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+      }),
+      new TableOfContents(title, {
+        hyperlink: true,
+        headingStyleRange: '1-3',
+      }),
+    ]
+  }
+
   if (block.type === 'spacer') {
     const n = Math.max(1, block.lines ?? 1)
     return Array.from({ length: n }, () => emptyParagraph(cfg))
+  }
+
+  if (block.type === 'formula') {
+    const num = counters.next('formula')
+    const result: (Paragraph | Table)[] = []
+
+    const refText = resolveReference(block.referenceText, s.formulaPrefix, num)
+    if (refText) {
+      if (block.inlineReference) {
+        out.inlineRef = refText
+      } else {
+        result.push(bodyParagraph(inlineRuns(refText, cfg), cfg))
+      }
+    }
+
+    const mathEl = latexToOmml(block.latex)
+    const numbered = block.numbered !== false
+    const contentTwips = cmToTwip(21 - s.marginLeft - s.marginRight)
+    const mathChild: TextRun | ImportedXmlComponent = mathEl
+      ? mathEl
+      : baseRun(block.latex, cfg, false, true) // fallback: raw latex in italics
+
+    if (numbered) {
+      // [tab→center] formula [tab→right] (N)
+      result.push(new Paragraph({
+        children: [
+          new TextRun({ text: '\t', font: cfg.name, size: cfg.size }),
+          mathChild,
+          new TextRun({ text: `\t(${num})`, font: cfg.name, size: cfg.size }),
+        ],
+        spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+        tabStops: [
+          { type: TabStopType.CENTER, position: Math.round(contentTwips / 2) },
+          { type: TabStopType.RIGHT, position: contentTwips },
+        ],
+      }))
+    } else {
+      result.push(new Paragraph({
+        children: [mathChild],
+        alignment: AlignmentType.CENTER,
+        spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+      }))
+    }
+
+    if (block.caption) {
+      result.push(captionParagraph(`${s.formulaPrefix} ${num} – ${block.caption}`, cfg))
+    }
+
+    return result
   }
 
   if (block.type === 'list') {
@@ -291,12 +409,12 @@ function buildBlock(
   }
 
   if (block.type === 'code') {
-    counters.code++
+    const num = counters.next('code')
     const result: (Paragraph | Table)[] = []
     const codeSize = ptToHalfPt(block.fontSize ?? 12)
     const codeSpacing = block.lineSpacing ?? 1.0
 
-    const refText = resolveReference(block.referenceText, s.listingPrefix, counters.code)
+    const refText = resolveReference(block.referenceText, s.listingPrefix, num)
 
     if (refText) {
       if (block.inlineReference) {
@@ -306,7 +424,7 @@ function buildBlock(
       }
     }
     result.push(emptyParagraph(cfg))
-    result.push(captionParagraph(`${s.listingPrefix} ${counters.code} – ${block.caption}`, cfg))
+    result.push(captionParagraph(`${s.listingPrefix} ${num} – ${block.caption}`, cfg))
     result.push(
       new Paragraph({
         children: [new TextRun({ text: block.code, font: 'Courier New', size: codeSize })],
@@ -319,10 +437,10 @@ function buildBlock(
   }
 
   if (block.type === 'image') {
-    counters.image++
+    const num = counters.next('image')
     const result: (Paragraph | Table)[] = []
 
-    const refText = resolveReference(block.referenceText, s.imagePrefix, counters.image)
+    const refText = resolveReference(block.referenceText, s.imagePrefix, num)
 
     if (refText) {
       if (block.inlineReference) {
@@ -353,7 +471,7 @@ function buildBlock(
 
     result.push(
       new Paragraph({
-        children: inlineRuns(`${s.imagePrefix} ${counters.image} – ${block.caption}`, cfg),
+        children: inlineRuns(`${s.imagePrefix} ${num} – ${block.caption}`, cfg),
         alignment: AlignmentType.CENTER,
         spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
       })
@@ -364,7 +482,7 @@ function buildBlock(
   }
 
   if (block.type === 'table') {
-    counters.table++
+    const num = counters.next('table')
     const result: (Paragraph | Table)[] = []
     const tblSize = ptToHalfPt(block.fontSize ?? 12)
     const tblSpacing = block.lineSpacing ?? 1.0
@@ -373,8 +491,8 @@ function buildBlock(
 
     const refText = block.referenceText
       ? (block.referenceText.includes('{no}')
-          ? block.referenceText.replace(/\{no\}/g, String(counters.table))
-          : `У ${s.tablePrefix.toLowerCase()} ${counters.table} ${block.referenceText.toLowerCase()}.`)
+          ? block.referenceText.replace(/\{no\}/g, num)
+          : `У ${s.tablePrefix.toLowerCase()} ${num} ${block.referenceText.toLowerCase()}.`)
       : ''
 
     if (refText) {
@@ -459,10 +577,10 @@ function buildBlock(
 
     chunks.forEach((chunk, ci) => {
       if (ci === 0) {
-        result.push(captionParagraph(`${s.tablePrefix} ${counters.table} – ${block.caption}`, cfg))
+        result.push(captionParagraph(`${s.tablePrefix} ${num} – ${block.caption}`, cfg))
       } else {
         result.push(emptyParagraph(cfg))
-        result.push(captionParagraph(`Продовження таблиці ${counters.table} – ${block.caption}`, cfg, AlignmentType.RIGHT))
+        result.push(captionParagraph(`Продовження таблиці ${num} – ${block.caption}`, cfg, AlignmentType.RIGHT))
       }
       result.push(new Table({
         rows: [makeHeaderRow(), ...chunk.map(makeDataRow)],
@@ -534,10 +652,10 @@ async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
     paragraphIndent: s.paragraphIndent,
   }
 
-  const counters = { image: 0, code: 0, table: 0 }
+  const counters = makeCounters(s.numberingScheme)
 
   const titleChildren = buildTitlePage(doc, cfg)
-  const bodyChildren: (Paragraph | Table)[] = []
+  const bodyChildren: (Paragraph | Table | TableOfContents)[] = []
 
   for (const block of doc.blocks) {
     const out: { inlineRef?: string } = {}

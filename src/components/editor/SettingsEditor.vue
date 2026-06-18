@@ -111,6 +111,20 @@ const hfModes = [
       <label>Таблиці</label>
       <input class="field-input" :value="s.tablePrefix" @input="update('tablePrefix', ($event.target as HTMLInputElement).value)" />
     </div>
+    <div class="field-group">
+      <label>Формули</label>
+      <input class="field-input" :value="s.formulaPrefix" @input="update('formulaPrefix', ($event.target as HTMLInputElement).value)" />
+    </div>
+
+    <h4 class="subsection-title">Нумерація рисунків / таблиць / формул</h4>
+    <div class="field-group">
+      <label>Схема</label>
+      <select class="field-input" :value="s.numberingScheme" @change="update('numberingScheme', ($event.target as HTMLSelectElement).value)">
+        <option value="plain">Класична: 1, 2, 3 (ігнорувати розділи)</option>
+        <option value="perSection">З номером глави: 1.1, 1.2, 1.3 (без зміни глави)</option>
+        <option value="sectioned">За розділами: 1.1 … 2.1 (H2 = розділ)</option>
+      </select>
+    </div>
 
     <h4 class="subsection-title">Колонтитули</h4>
     <label class="checkbox-row">
