@@ -40,13 +40,7 @@ function createDocument(name: string): ReportDocument {
     titlePage: { ...DEFAULT_TITLE_PAGE, year: new Date().getFullYear().toString() },
     titleTemplate: deepCloneTitleBlocks(DEFAULT_TITLE_TEMPLATE),
     settings: { ...DEFAULT_SETTINGS },
-    blocks: [
-      { id: generateId(), type: 'paragraph', text: 'Тема: ', bold: false, align: 'justify' },
-      { id: generateId(), type: 'paragraph', text: 'Мета: ', bold: false, align: 'justify' },
-      { id: generateId(), type: 'paragraph', text: 'Варіант №1', bold: false, align: 'center' },
-      { id: generateId(), type: 'paragraph', text: 'Виконання роботи:', bold: true, align: 'center' },
-      { id: generateId(), type: 'paragraph', text: 'Висновки:', bold: true, align: 'center' },
-    ],
+    blocks: [],
   }
 }
 
@@ -329,11 +323,11 @@ export const useReportStore = defineStore('report', () => {
     const doc = activeDocument.value
     if (!doc) return
     const introBlocks: ReportBlock[] = [
-      { id: generateId(), type: 'paragraph', text: 'Тема: ', bold: false, align: 'justify' },
-      { id: generateId(), type: 'paragraph', text: 'Мета: ', bold: false, align: 'justify' },
+      { id: generateId(), type: 'paragraph', text: '**Тема:** ', bold: false, align: 'justify' },
+      { id: generateId(), type: 'paragraph', text: '**Мета:** ', bold: false, align: 'justify' },
       { id: generateId(), type: 'paragraph', text: 'Варіант №1', bold: false, align: 'center' },
       { id: generateId(), type: 'paragraph', text: 'Виконання роботи:', bold: true, align: 'center' },
-      { id: generateId(), type: 'paragraph', text: 'Висновки:', bold: true, align: 'center' },
+      { id: generateId(), type: 'paragraph', text: '**Висновки:** ', bold: false, align: 'justify' },
     ]
     doc.blocks = [...introBlocks, ...doc.blocks]
     touchActive()

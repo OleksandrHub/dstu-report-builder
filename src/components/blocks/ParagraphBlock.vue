@@ -36,6 +36,7 @@ const indent = () => props.block.indent ?? doc()?.settings.paragraphIndent ?? 1.
       rows="3"
       placeholder="Текст абзацу..."
     />
+    <p class="block-hint">**жирний** · *курсив* · __підкреслення__ · `моноширинний`</p>
 
     <div class="block-style-row">
       <!-- Align -->

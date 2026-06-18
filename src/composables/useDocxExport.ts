@@ -38,14 +38,64 @@ interface FontConfig {
   paragraphIndent: number // cm
 }
 
-function baseRun(text: string, cfg: FontConfig, bold = false, italic = false): TextRun {
+interface RunStyle {
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  mono?: boolean
+}
+
+function styledRun(text: string, cfg: FontConfig, st: RunStyle): TextRun {
   return new TextRun({
     text,
-    font: cfg.name,
+    font: st.mono ? 'Courier New' : cfg.name,
     size: cfg.size,
-    bold,
-    italics: italic,
+    bold: st.bold,
+    italics: st.italic,
+    underline: st.underline ? {} : undefined,
   })
+}
+
+function baseRun(text: string, cfg: FontConfig, bold = false, italic = false): TextRun {
+  return styledRun(text, cfg, { bold, italic })
+}
+
+// Inline formatting markers, longest-first so ** wins over *:
+//   **bold**   *italic*   __underline__   `mono`
+// `baseBold` is the block's default weight, so **...** toggles relative to it.
+const INLINE_MARKERS: Array<{ re: RegExp; key: keyof RunStyle }> = [
+  { re: /^\*\*([\s\S]+?)\*\*/, key: 'bold' },
+  { re: /^__([\s\S]+?)__/, key: 'underline' },
+  { re: /^\*([\s\S]+?)\*/, key: 'italic' },
+  { re: /^`([^`]+?)`/, key: 'mono' },
+]
+
+function inlineRuns(text: string, cfg: FontConfig, baseBold = false): TextRun[] {
+  const runs: TextRun[] = []
+  let buf = ''
+  let i = 0
+  const flush = () => {
+    if (buf) { runs.push(styledRun(buf, cfg, { bold: baseBold })); buf = '' }
+  }
+  while (i < text.length) {
+    const rest = text.slice(i)
+    let matched = false
+    for (const { re, key } of INLINE_MARKERS) {
+      const m = re.exec(rest)
+      if (m) {
+        flush()
+        const st: RunStyle = key === 'bold' ? { bold: !baseBold } : { bold: baseBold, [key]: true }
+        runs.push(styledRun(m[1] ?? '', cfg, st))
+        i += m[0].length
+        matched = true
+        break
+      }
+    }
+    if (!matched) { buf += text[i]; i++ }
+  }
+  flush()
+  if (runs.length === 0) runs.push(styledRun('', cfg, { bold: baseBold }))
+  return runs
 }
 
 function bodyParagraph(
@@ -151,7 +201,7 @@ function buildBlock(
     const alignment = alignMap[block.align ?? 'justify'] ?? AlignmentType.JUSTIFIED
     const noIndent = block.align === 'center' || block.align === 'right'
 
-    return [bodyParagraph([baseRun(block.text, pCfg, block.bold ?? false)], pCfg, noIndent, alignment)]
+    return [bodyParagraph(inlineRuns(block.text, pCfg, block.bold ?? false), pCfg, noIndent, alignment)]
   }
 
   if (block.type === 'heading') {
