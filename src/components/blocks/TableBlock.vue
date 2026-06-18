@@ -39,16 +39,34 @@ function updateCell(rowId: string, colIdx: number, value: string) {
       </div>
     </div>
 
-    <div class="block-field-row">
-      <label>Посилання в тексті:</label>
+    <label class="ref-toggle">
       <input
-        class="block-input"
-        :value="props.block.referenceText"
-        @input="emit('update', { referenceText: ($event.target as HTMLInputElement).value })"
-        placeholder="Дані наведено у таблиці {no}."
+        type="checkbox"
+        :checked="props.block.referenceText !== ''"
+        @change="emit('update', { referenceText: ($event.target as HTMLInputElement).checked ? 'Дані наведено у таблиці {no}.' : '' })"
       />
-    </div>
-    <p class="block-hint">{no} — підставиться номер таблиці</p>
+      <span>Показувати посилання в тексті</span>
+    </label>
+    <template v-if="props.block.referenceText !== ''">
+      <div class="block-field-row">
+        <label>Текст посилання:</label>
+        <input
+          class="block-input"
+          :value="props.block.referenceText"
+          @input="emit('update', { referenceText: ($event.target as HTMLInputElement).value })"
+          placeholder="Дані наведено у таблиці {no}."
+        />
+      </div>
+      <p class="block-hint">{no} — підставиться номер таблиці</p>
+      <label class="ref-toggle">
+        <input
+          type="checkbox"
+          :checked="!!props.block.inlineReference"
+          @change="emit('update', { inlineReference: ($event.target as HTMLInputElement).checked })"
+        />
+        <span>Продовжити попередній абзац (без нового рядка)</span>
+      </label>
+    </template>
 
     <div class="block-field-row">
       <label>Підпис:</label>

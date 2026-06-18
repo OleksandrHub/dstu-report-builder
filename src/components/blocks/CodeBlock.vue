@@ -23,16 +23,34 @@ const languages = ['typescript', 'javascript', 'python', 'java', 'c', 'cpp', 'cs
       </div>
     </div>
 
-    <div class="block-field-row">
-      <label>Посилання в тексті:</label>
+    <label class="ref-toggle">
       <input
-        class="block-input"
-        :value="props.block.referenceText"
-        @input="emit('update', { referenceText: ($event.target as HTMLInputElement).value })"
-        placeholder="Код програми подано у лістингу {no}."
+        type="checkbox"
+        :checked="props.block.referenceText !== ''"
+        @change="emit('update', { referenceText: ($event.target as HTMLInputElement).checked ? 'Код програми подано у лістингу {no}.' : '' })"
       />
-    </div>
-    <p class="block-hint">{no} — підставиться номер лістингу</p>
+      <span>Показувати посилання в тексті</span>
+    </label>
+    <template v-if="props.block.referenceText !== ''">
+      <div class="block-field-row">
+        <label>Текст посилання:</label>
+        <input
+          class="block-input"
+          :value="props.block.referenceText"
+          @input="emit('update', { referenceText: ($event.target as HTMLInputElement).value })"
+          placeholder="Код програми подано у лістингу {no}."
+        />
+      </div>
+      <p class="block-hint">{no} — підставиться номер лістингу</p>
+      <label class="ref-toggle">
+        <input
+          type="checkbox"
+          :checked="!!props.block.inlineReference"
+          @change="emit('update', { inlineReference: ($event.target as HTMLInputElement).checked })"
+        />
+        <span>Продовжити попередній абзац (без нового рядка)</span>
+      </label>
+    </template>
 
     <div class="block-field-row">
       <label>Підпис лістингу:</label>

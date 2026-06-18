@@ -51,6 +51,7 @@ export interface ParagraphBlock {
   fontSize?: number   // pt, overrides doc default
   fontFamily?: string // overrides doc default
   lineSpacing?: number // overrides doc default
+  indent?: number     // cm, first-line indent override (overrides doc default)
 }
 
 export interface HeadingBlock {
@@ -80,6 +81,7 @@ export interface CodeBlock {
   code: string
   language: string
   referenceText?: string
+  inlineReference?: boolean // append referenceText to the previous paragraph instead of a new line
   fontSize?: number     // default 12
   lineSpacing?: number  // default 1.0
 }
@@ -90,6 +92,7 @@ export interface ImageBlock {
   src: string
   caption: string
   referenceText?: string
+  inlineReference?: boolean
 }
 
 export interface TableCell {
@@ -112,6 +115,7 @@ export interface TableBlock {
   headers: string[]
   rows: TableRow[]
   referenceText?: string
+  inlineReference?: boolean
   fontSize?: number     // default 12
   lineSpacing?: number  // default 1.0
 }
@@ -238,17 +242,17 @@ export const DEFAULT_TITLE_TEMPLATE: TitleBlock[] = [
   line('{{ministry}}', 'center'),
   line('{{university}}', 'center'),
   { id: tid(), type: 'titleSpacer', lines: 3 },
-  line('{{department}}', 'center'),
+  line('{{department}}', 'right'),
   { id: tid(), type: 'titleSpacer', lines: 3 },
   line('ЗВІТ', 'center', true),
   line('про виконання {{workType}} №{{workNumber}}', 'center'),
   line('на тему: «{{topic}}»', 'center'),
   line('з дисципліни «{{discipline}}»', 'center'),
   { id: tid(), type: 'titleSpacer', lines: 3 },
-  line('Виконав:', 'left', false, 11, 0),
+  line('Виконав:', 'left', true, 11, 0),
   line('Студент групи {{studentGroup}}', 'left', false, 11, 0),
   line('{{studentName}}', 'left', false, 11, 0),
-  line('Прийняв:', 'left', false, 11, 0),
+  line('Прийняв:', 'left', true, 11, 0),
   line('{{teacherTitle}}', 'left', false, 11, 0),
   line('{{teacherName}}', 'left', false, 11, 0),
   { id: tid(), type: 'titleSpacer', lines: 5 },

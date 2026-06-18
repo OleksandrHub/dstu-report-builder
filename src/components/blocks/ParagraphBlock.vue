@@ -15,6 +15,7 @@ const doc = () => store.activeDocument
 const fontSize = () => props.block.fontSize ?? doc()?.settings.fontSize ?? 14
 const lineSpacing = () => props.block.lineSpacing ?? doc()?.settings.lineSpacing ?? 1.5
 const fontFamily = () => props.block.fontFamily ?? doc()?.settings.fontFamily ?? 'Times New Roman'
+const indent = () => props.block.indent ?? doc()?.settings.paragraphIndent ?? 1.25
 </script>
 
 <template>
@@ -89,10 +90,20 @@ const fontFamily = () => props.block.fontFamily ?? doc()?.settings.fontFamily ??
       />
       <span class="style-unit">інт</span>
 
+      <!-- First-line indent -->
+      <input
+        type="number" min="0" max="5" step="0.25"
+        class="style-number"
+        :value="indent()"
+        @input="emit('update', { indent: parseFloat(($event.target as HTMLInputElement).value) })"
+        title="Абзацний відступ (см)"
+      />
+      <span class="style-unit">см</span>
+
       <!-- Reset to doc defaults -->
       <button
         class="style-btn"
-        @click="emit('update', { fontSize: undefined, fontFamily: undefined, lineSpacing: undefined })"
+        @click="emit('update', { fontSize: undefined, fontFamily: undefined, lineSpacing: undefined, indent: undefined })"
         title="Скинути до налаштувань документа"
       >↺</button>
     </div>

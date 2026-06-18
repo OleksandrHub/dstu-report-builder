@@ -14,6 +14,7 @@ import {
   Header,
   Footer,
   PageNumber,
+  SectionType,
   convertInchesToTwip,
   convertMillimetersToTwip,
 } from 'docx'
@@ -129,7 +130,8 @@ function buildBlock(
   block: ReportBlock,
   doc: ReportDocument,
   cfg: FontConfig,
-  counters: { image: number; code: number; table: number }
+  counters: { image: number; code: number; table: number },
+  out: { inlineRef?: string } = {}
 ): (Paragraph | Table)[] {
   const s = doc.settings
 
@@ -138,6 +140,7 @@ function buildBlock(
     if (block.fontSize) pCfg.size = ptToHalfPt(block.fontSize)
     if (block.fontFamily) pCfg.name = block.fontFamily
     if (block.lineSpacing !== undefined) pCfg.lineSpacing = block.lineSpacing
+    if (block.indent !== undefined) pCfg.paragraphIndent = block.indent
 
     const alignMap: Record<string, typeof AlignmentType[keyof typeof AlignmentType]> = {
       left: AlignmentType.LEFT,
@@ -216,7 +219,11 @@ function buildBlock(
     const refText = resolveReference(block.referenceText, s.listingPrefix, counters.code)
 
     if (refText) {
-      result.push(bodyParagraph([baseRun(refText, cfg)], cfg))
+      if (block.inlineReference) {
+        out.inlineRef = refText
+      } else {
+        result.push(bodyParagraph([baseRun(refText, cfg)], cfg))
+      }
     }
     result.push(emptyParagraph(cfg))
     result.push(captionParagraph(`${s.listingPrefix} ${counters.code} – ${block.caption}`, cfg))
@@ -238,7 +245,11 @@ function buildBlock(
     const refText = resolveReference(block.referenceText, s.imagePrefix, counters.image)
 
     if (refText) {
-      result.push(bodyParagraph([baseRun(refText, cfg)], cfg))
+      if (block.inlineReference) {
+        out.inlineRef = refText
+      } else {
+        result.push(bodyParagraph([baseRun(refText, cfg)], cfg))
+      }
     }
     result.push(emptyParagraph(cfg))
 
@@ -287,7 +298,11 @@ function buildBlock(
       : ''
 
     if (refText) {
-      result.push(bodyParagraph([baseRun(refText, cfg)], cfg))
+      if (block.inlineReference) {
+        out.inlineRef = refText
+      } else {
+        result.push(bodyParagraph([baseRun(refText, cfg)], cfg))
+      }
     }
     result.push(emptyParagraph(cfg))
 
@@ -416,13 +431,36 @@ async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
   const bodyChildren: (Paragraph | Table)[] = []
 
   for (const block of doc.blocks) {
-    const elements = buildBlock(block, doc, cfg, counters)
+    const out: { inlineRef?: string } = {}
+    const elements = buildBlock(block, doc, cfg, counters, out)
+
+    // Inline reference: append the sentence to the previous paragraph instead of
+    // emitting it on its own line. Falls back to a normal line if there's no
+    // previous paragraph to attach to.
+    if (out.inlineRef) {
+      const prev = bodyChildren[bodyChildren.length - 1]
+      if (prev instanceof Paragraph) {
+        prev.addChildElement(new TextRun({ text: ` ${out.inlineRef}`, font: cfg.name, size: cfg.size }))
+      } else {
+        bodyChildren.push(bodyParagraph([baseRun(out.inlineRef, cfg)], cfg))
+      }
+    }
+
     bodyChildren.push(...elements)
   }
 
   const header = buildHeader(s.header)
   const footer = buildFooter(s.footer)
 
+  const pageMargin = {
+    left: cmToTwip(s.marginLeft),
+    right: cmToTwip(s.marginRight),
+    top: cmToTwip(s.marginTop),
+    bottom: cmToTwip(s.marginBottom),
+  }
+
+  // Title page is its own section so the body starts on a fresh page WITHOUT
+  // an extra empty paragraph. The body section uses nextPage to break cleanly.
   const docxDoc = new Document({
     styles: {
       default: {
@@ -437,39 +475,24 @@ async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
     sections: [
       {
         properties: {
-          page: {
-            margin: {
-              left: cmToTwip(s.marginLeft),
-              right: cmToTwip(s.marginRight),
-              top: cmToTwip(s.marginTop),
-              bottom: cmToTwip(s.marginBottom),
-            },
-          },
-          // When enabled, the title page gets its own (empty) header/footer
-          // so page numbering effectively starts on the body.
-          titlePage: s.differentFirstPage,
+          page: { margin: pageMargin },
         },
-        headers: header
-          ? {
-              default: header,
-              ...(s.differentFirstPage
-                ? { first: new Header({ children: [new Paragraph({ children: [] })] }) }
-                : {}),
-            }
-          : undefined,
-        footers: footer
-          ? {
-              default: footer,
-              ...(s.differentFirstPage
-                ? { first: new Footer({ children: [new Paragraph({ children: [] })] }) }
-                : {}),
-            }
-          : undefined,
-        children: [
-          ...titleChildren,
-          new Paragraph({ children: [], pageBreakBefore: true }),
-          ...bodyChildren,
-        ],
+        // The title section has no header/footer when differentFirstPage is on.
+        headers: header && !s.differentFirstPage ? { default: header } : undefined,
+        footers: footer && !s.differentFirstPage ? { default: footer } : undefined,
+        children: [...titleChildren],
+      },
+      {
+        properties: {
+          type: SectionType.NEXT_PAGE,
+          page: {
+            margin: pageMargin,
+            pageNumbers: { start: 1 },
+          },
+        },
+        headers: header ? { default: header } : undefined,
+        footers: footer ? { default: footer } : undefined,
+        children: [...bodyChildren],
       },
     ],
   })
