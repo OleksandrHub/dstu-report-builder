@@ -14,8 +14,8 @@
     "lint:eslint": "eslint . --fix --cache"
   },
   "dependencies": {
+    "@harbour-enterprises/superdoc": "^1.41.0",
     "docx": "^9.7.1",
-    "docx-preview": "^0.3.7",
     "pinia": "^3.0.4",
     "vue": "^3.5.38",
     "vue-router": "^5.1.0"

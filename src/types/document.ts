@@ -237,6 +237,7 @@ function line(text: string, align: TitleAlign, bold = false, paddingLeft = 0, pa
 export const DEFAULT_TITLE_TEMPLATE: TitleBlock[] = [
   line('{{ministry}}', 'center'),
   line('{{university}}', 'center'),
+  { id: tid(), type: 'titleSpacer', lines: 3 },
   line('{{department}}', 'center'),
   { id: tid(), type: 'titleSpacer', lines: 3 },
   line('ЗВІТ', 'center', true),
@@ -244,11 +245,13 @@ export const DEFAULT_TITLE_TEMPLATE: TitleBlock[] = [
   line('на тему: «{{topic}}»', 'center'),
   line('з дисципліни «{{discipline}}»', 'center'),
   { id: tid(), type: 'titleSpacer', lines: 3 },
-  line('Виконав: Студент групи {{studentGroup}}', 'left', false, 9, 0),
-  line('{{studentName}}', 'left', false, 9, 0),
-  line('Прийняв: {{teacherTitle}}', 'left', false, 9, 0),
-  line('{{teacherName}}', 'left', false, 9, 0),
-  { id: tid(), type: 'titleSpacer', lines: 3 },
+  line('Виконав:', 'left', false, 11, 0),
+  line('Студент групи {{studentGroup}}', 'left', false, 11, 0),
+  line('{{studentName}}', 'left', false, 11, 0),
+  line('Прийняв:', 'left', false, 11, 0),
+  line('{{teacherTitle}}', 'left', false, 11, 0),
+  line('{{teacherName}}', 'left', false, 11, 0),
+  { id: tid(), type: 'titleSpacer', lines: 5 },
   line('{{city}} – {{year}}', 'center'),
 ]
 

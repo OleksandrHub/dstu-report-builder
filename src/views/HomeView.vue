@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { renderAsync } from 'docx-preview'
+import { SuperDoc } from '@harbour-enterprises/superdoc'
+import '@harbour-enterprises/superdoc/style.css'
 import { useReportStore } from '../stores/report'
 import { useReport } from '../composables/useReport'
 import { useDocxExport } from '../composables/useDocxExport'
@@ -33,12 +34,20 @@ function onUpdateBlock(id: string, data: Partial<ReportBlock>) {
   store.updateBlock(id, data)
 }
 
-// ===== Live docx preview =====
+// ===== Live docx preview (SuperDoc) =====
 const previewRef = ref<HTMLElement | null>(null)
 const previewError = ref<string | null>(null)
 const previewLoading = ref(false)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let renderToken = 0
+let superdoc: SuperDoc | null = null
+
+function destroySuperdoc() {
+  if (superdoc) {
+    try { (superdoc as unknown as { destroy?: () => void }).destroy?.() } catch { /* ignore */ }
+    superdoc = null
+  }
+}
 
 async function renderPreview() {
   if (!doc.value || !previewRef.value) return
@@ -48,33 +57,41 @@ async function renderPreview() {
   try {
     const blob = await getPreviewBlob(doc.value)
     if (token !== renderToken || !previewRef.value) return // superseded
-    await renderAsync(blob, previewRef.value, undefined, {
-      className: 'docx',
-      inWrapper: true,
-      ignoreWidth: false,
-      ignoreHeight: false,
-      ignoreFonts: false,
-      breakPages: true,
-      ignoreLastRenderedPageBreak: false,
-      experimental: true,
-      trimXmlDeclaration: true,
-      useBase64URL: true,
-      renderHeaders: true,
-      renderFooters: true,
-      renderFootnotes: true,
-      renderEndnotes: true,
-      renderChanges: false,
+    const file = new File([blob], `${doc.value.name || 'document'}.docx`, {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+
+    destroySuperdoc()
+    // Clear the mount node between renders.
+    previewRef.value.innerHTML = ''
+
+    superdoc = new SuperDoc({
+      selector: previewRef.value,
+      document: file,
+      documentMode: 'viewing',
+      role: 'viewer',
+      disablePiniaDevtools: true,
+      onReady: () => {
+        if (token === renderToken) previewLoading.value = false
+      },
+      onContentError: ({ error }) => {
+        if (token === renderToken) {
+          previewError.value = (error as Error)?.message ?? 'Помилка рендеру документа'
+          previewLoading.value = false
+        }
+      },
     })
   } catch (e) {
-    previewError.value = (e as Error)?.message ?? 'Помилка рендеру'
-  } finally {
-    if (token === renderToken) previewLoading.value = false
+    if (token === renderToken) {
+      previewError.value = (e as Error)?.message ?? 'Помилка рендеру'
+      previewLoading.value = false
+    }
   }
 }
 
 function scheduleRender() {
   if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(renderPreview, 400)
+  debounceTimer = setTimeout(renderPreview, 500)
 }
 
 onMounted(async () => {
@@ -84,6 +101,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (debounceTimer) clearTimeout(debounceTimer)
+  destroySuperdoc()
 })
 
 // Re-render whenever the active document changes (deep).
@@ -198,16 +216,16 @@ watch(doc, scheduleRender, { deep: true })
       </div>
     </aside>
 
-    <!-- RIGHT: Live .docx preview -->
+    <!-- RIGHT: Live .docx preview (SuperDoc) -->
     <main class="preview-panel">
       <div class="preview-toolbar">
         <span class="preview-label">Перегляд .docx</span>
         <span v-if="previewLoading" class="preview-status">оновлення…</span>
         <button class="preview-refresh" @click="renderPreview" title="Оновити перегляд">⟳</button>
       </div>
-      <div class="preview-scroll docx-preview-scroll">
+      <div class="preview-scroll superdoc-scroll">
         <div v-if="previewError" class="preview-error">⚠ {{ previewError }}</div>
-        <div ref="previewRef" class="docx-preview-root"></div>
+        <div ref="previewRef" class="superdoc-root"></div>
       </div>
     </main>
   </div>
