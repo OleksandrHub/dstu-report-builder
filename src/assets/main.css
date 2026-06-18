@@ -859,6 +859,34 @@ h3.preview-heading { font-size: 1em; }
 }
 .btn-small:hover { opacity: 0.85; }
 
+/* Table column width controls */
+.col-width-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 6px 0;
+}
+.col-width-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+
+/* Markdown import panel */
+.md-table-toolbar { margin: 6px 0; }
+.md-table-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+.md-error { color: #ff8888; }
+
 .vars-hint { background: var(--color-input-bg); border: 1px solid var(--color-border); border-radius: var(--radius); padding: 8px; }
 .vars-label { font-size: 11px; color: var(--color-text-muted); display: block; margin-bottom: 5px; }
 .vars-list { display: flex; flex-wrap: wrap; gap: 4px; }

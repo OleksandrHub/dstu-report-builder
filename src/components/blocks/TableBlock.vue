@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, computed } from 'vue'
 import type { TableBlock } from '../../types/document'
 import { useReportStore } from '../../stores/report'
 import MarkerHint from './MarkerHint.vue'
@@ -26,6 +27,47 @@ function updateCell(rowId: string, colIdx: number, value: string) {
     return { ...r, cells }
   })
   emit('update', { rows })
+}
+
+// Column width displayed for column i (explicit % or even split).
+function colWidth(i: number): number {
+  const n = props.block.headers.length
+  const w = props.block.columnWidths
+  if (w && w.length === n && w[i] != null) return w[i] as number
+  return Math.round(100 / n)
+}
+
+// --- Markdown import ---
+const showMd = ref(false)
+const mdText = ref('')
+const mdError = ref('')
+
+function applyMarkdown() {
+  mdError.value = ''
+  const ok = store.importMarkdownTable(props.block.id, mdText.value)
+  if (!ok) {
+    mdError.value = 'Не вдалося розпізнати таблицю. Перевірте формат Markdown.'
+    return
+  }
+  showMd.value = false
+  mdText.value = ''
+}
+
+// Export the current table back to Markdown (so editing round-trips).
+const currentMarkdown = computed(() => {
+  const esc = (s: string) => s.replace(/\|/g, '\\|')
+  const head = `| ${props.block.headers.map(esc).join(' | ')} |`
+  const sep = `| ${props.block.headers.map(() => '---').join(' | ')} |`
+  const body = props.block.rows
+    .map(r => `| ${r.cells.map(c => esc(c.text)).join(' | ')} |`)
+    .join('\n')
+  return [head, sep, body].filter(Boolean).join('\n')
+})
+
+function openMdWithCurrent() {
+  mdText.value = currentMarkdown.value
+  mdError.value = ''
+  showMd.value = true
 }
 </script>
 
@@ -93,6 +135,51 @@ function updateCell(rowId: string, colIdx: number, value: string) {
         @input="emit('update', { lineSpacing: parseFloat(($event.target as HTMLInputElement).value) || 1.0 })"
         title="Міжрядковий інтервал"
       />
+    </div>
+
+    <!-- Width settings -->
+    <label class="ref-toggle">
+      <input
+        type="checkbox"
+        :checked="props.block.fullWidth !== false"
+        @change="store.setTableFullWidth(props.block.id, ($event.target as HTMLInputElement).checked)"
+      />
+      <span>На всю ширину сторінки</span>
+    </label>
+
+    <div class="col-width-row">
+      <span class="style-label">Ширина стовпців (%):</span>
+      <div class="col-width-inputs">
+        <input
+          v-for="(_h, ci) in props.block.headers"
+          :key="ci"
+          type="number" min="1" max="100" step="1"
+          class="style-number"
+          :value="colWidth(ci)"
+          @input="store.setTableColumnWidth(props.block.id, ci, parseInt(($event.target as HTMLInputElement).value) || 1)"
+          :title="`Стовпець ${ci + 1}`"
+        />
+        <button class="btn-small" @click="store.resetTableColumnWidths(props.block.id)" title="Рівні ширини">↺</button>
+      </div>
+    </div>
+
+    <!-- Markdown import/export -->
+    <div class="md-table-toolbar">
+      <button class="btn-small" @click="showMd ? (showMd = false) : openMdWithCurrent()">
+        {{ showMd ? '✕ Сховати Markdown' : '⇄ Markdown' }}
+      </button>
+    </div>
+    <div v-if="showMd" class="md-table-panel">
+      <textarea
+        class="block-textarea"
+        v-model="mdText"
+        rows="8"
+        spellcheck="false"
+        placeholder="| Колонка 1 | Колонка 2 |&#10;| --- | --- |&#10;| Текст | Текст |"
+      />
+      <p v-if="mdError" class="block-hint md-error">{{ mdError }}</p>
+      <p class="block-hint">Вставте Markdown-таблицю і натисніть «Застосувати» — вона замінить вміст.</p>
+      <button class="btn-add-item" @click="applyMarkdown">Застосувати Markdown</button>
     </div>
 
     <div class="table-editor-wrap">

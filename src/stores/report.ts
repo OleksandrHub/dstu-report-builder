@@ -18,6 +18,7 @@ import {
   DEFAULT_TITLE_TEMPLATE,
   TITLE_TEMPLATES_STORAGE_KEY,
   TITLE_DATA_TEMPLATES_KEY,
+  parseMarkdownTable,
 } from '../types/document'
 
 const STORAGE_KEY = 'dstu-report-builder-documents'
@@ -429,6 +430,56 @@ export const useReportStore = defineStore('report', () => {
     touchActive()
   }
 
+  function setTableFullWidth(blockId: string, full: boolean) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const block = doc.blocks.find(b => b.id === blockId)
+    if (!block || block.type !== 'table') return
+    block.fullWidth = full
+    touchActive()
+  }
+
+  function setTableColumnWidth(blockId: string, colIndex: number, pct: number) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const block = doc.blocks.find(b => b.id === blockId)
+    if (!block || block.type !== 'table') return
+    const n = block.headers.length
+    // Initialize to an even split if no explicit widths yet.
+    if (!block.columnWidths || block.columnWidths.length !== n) {
+      block.columnWidths = Array.from({ length: n }, () => Math.round(100 / n))
+    }
+    block.columnWidths[colIndex] = pct
+    touchActive()
+  }
+
+  function resetTableColumnWidths(blockId: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const block = doc.blocks.find(b => b.id === blockId)
+    if (!block || block.type !== 'table') return
+    block.columnWidths = undefined
+    touchActive()
+  }
+
+  function importMarkdownTable(blockId: string, md: string): boolean {
+    const doc = activeDocument.value
+    if (!doc) return false
+    const block = doc.blocks.find(b => b.id === blockId)
+    if (!block || block.type !== 'table') return false
+    const parsed = parseMarkdownTable(md)
+    if (!parsed || parsed.headers.length === 0) return false
+    block.headers = [...parsed.headers]
+    block.rows = parsed.rows.map(cells => ({
+      id: generateId(),
+      cells: cells.map(text => ({ text })),
+    }))
+    // Column count changed → drop stale explicit widths.
+    block.columnWidths = undefined
+    touchActive()
+    return true
+  }
+
   function toggleTableRowSplit(blockId: string, rowId: string) {
     const doc = activeDocument.value
     if (!doc) return
@@ -602,6 +653,10 @@ export const useReportStore = defineStore('report', () => {
     addTableColumn,
     removeTableColumn,
     toggleTableRowSplit,
+    setTableFullWidth,
+    setTableColumnWidth,
+    resetTableColumnWidths,
+    importMarkdownTable,
     getBlockIndex,
     addTitleBlock,
     removeTitleBlock,

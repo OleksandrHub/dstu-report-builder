@@ -363,24 +363,49 @@ function buildBlock(
       right: { style: BorderStyle.SINGLE, size: 1 },
     })
 
+    // Content width (twips) available for the table = page width − L/R margins.
+    const A4_WIDTH_CM = 21
+    const contentTwips = cmToTwip(A4_WIDTH_CM - s.marginLeft - s.marginRight)
+    const colCount = block.headers.length
+
+    // Per-column width in twips. Use explicit columnWidths (% → twips) when valid,
+    // otherwise distribute evenly.
+    const widths = block.columnWidths
+    const hasWidths = Array.isArray(widths) && widths.length === colCount && widths.some(w => w > 0)
+    const colTwips: number[] = []
+    for (let i = 0; i < colCount; i++) {
+      const pct = hasWidths ? (widths![i] || 0) : 100 / colCount
+      colTwips.push(Math.round(contentTwips * pct / 100))
+    }
+
+    const cellWidth = (i: number) => ({ size: colTwips[i] ?? 0, type: WidthType.DXA })
+
     const makeHeaderRow = () => new TableRow({
-      children: block.headers.map(h =>
+      children: block.headers.map((h, i) =>
         new TableCell({
           children: [new Paragraph({ children: inlineRuns(h, tCfg, true), alignment: AlignmentType.CENTER, spacing: { line: Math.round(tblSpacing * 240), lineRule: 'auto' as never } })],
           borders: makeBorder(),
+          width: cellWidth(i),
         })
       ),
       tableHeader: true,
     })
 
     const makeDataRow = (row: DocTableRow) => new TableRow({
-      children: row.cells.map(cell =>
+      children: row.cells.map((cell, i) =>
         new TableCell({
           children: [new Paragraph({ children: inlineRuns(cell.text, tCfg), spacing: { line: Math.round(tblSpacing * 240), lineRule: 'auto' as never } })],
           borders: makeBorder(),
+          width: cellWidth(i),
         })
       ),
     })
+
+    // fullWidth (default true) stretches to content width; otherwise auto-fit.
+    const fullWidth = block.fullWidth !== false
+    const tableWidth = fullWidth
+      ? { size: contentTwips, type: WidthType.DXA }
+      : { size: 0, type: WidthType.AUTO }
 
     // First split at manual breakpoints (rows flagged with splitBefore),
     // then split each manual segment further if it exceeds the auto threshold.
@@ -411,7 +436,8 @@ function buildBlock(
       }
       result.push(new Table({
         rows: [makeHeaderRow(), ...chunk.map(makeDataRow)],
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: tableWidth,
+        columnWidths: colTwips,
       }))
     })
     result.push(emptyParagraph(cfg))
