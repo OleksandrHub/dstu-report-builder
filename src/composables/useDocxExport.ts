@@ -548,7 +548,7 @@ function buildBlock(
     if (block.fontFamily) tCfg.name = block.fontFamily
     if (block.lineSpacing !== undefined) tCfg.lineSpacing = block.lineSpacing
     if (block.color) tCfg.color = block.color
-    const tBold = block.bold ?? true
+    const tBold = block.bold ?? false
     const tAlign = ALIGN4_MAP[block.align ?? 'center'] ?? AlignmentType.CENTER
 
     const titlePara = new Paragraph({
