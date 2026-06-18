@@ -600,6 +600,8 @@ function buildBlock(
       alignment: AlignmentType.CENTER,
       spacing: { line: Math.round(srcCfg.lineSpacing * 240), lineRule: 'auto' as never },
     }))
+    // Empty line between the heading and the first source.
+    result.push(emptyParagraph(srcCfg))
     block.entries.forEach((e, i) => {
       const text = formatSourceDSTU(e)
       result.push(new Paragraph({
