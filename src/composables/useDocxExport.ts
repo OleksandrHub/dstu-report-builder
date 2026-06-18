@@ -585,18 +585,27 @@ function buildBlock(
   if (block.type === 'sources') {
     const result: BodyEl[] = []
     const title = block.title ?? 'Список використаних джерел'
+    // Per-block formatting overrides (apply to the heading AND every entry).
+    const srcCfg = { ...cfg }
+    if (block.fontSize) srcCfg.size = ptToHalfPt(block.fontSize)
+    if (block.fontFamily) srcCfg.name = block.fontFamily
+    if (block.lineSpacing !== undefined) srcCfg.lineSpacing = block.lineSpacing
+    if (block.color) srcCfg.color = block.color
+    const entryAlign = ALIGN4_MAP[block.align ?? 'justify'] ?? AlignmentType.JUSTIFIED
+    const entryBold = block.bold ?? false
+
     result.push(new Paragraph({
-      children: inlineRuns(title, cfg, true),
+      children: inlineRuns(title, srcCfg, true),
       heading: HeadingLevel.HEADING_1,
       alignment: AlignmentType.CENTER,
-      spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+      spacing: { line: Math.round(srcCfg.lineSpacing * 240), lineRule: 'auto' as never },
     }))
     block.entries.forEach((e, i) => {
       const text = formatSourceDSTU(e)
       result.push(new Paragraph({
-        children: [baseRun(`${i + 1}. ${text}`, cfg)],
-        alignment: AlignmentType.JUSTIFIED,
-        spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+        children: [baseRun(`${i + 1}. ${text}`, srcCfg, entryBold)],
+        alignment: entryAlign,
+        spacing: { line: Math.round(srcCfg.lineSpacing * 240), lineRule: 'auto' as never },
         indent: { left: cmToTwip(0.75), hanging: cmToTwip(0.75) },
       }))
     })

@@ -251,14 +251,21 @@ export type SourceType = 'book' | 'article' | 'electronic'
 export interface SourceEntry {
   id: string
   type: SourceType
-  authors: string      // "Прізвище І. П., Прізвище І. П."
-  title: string        // назва праці
+  authors: string      // автори через кому: "Прізвище І. П., Інший А. Б."
+  title: string        // основна назва праці
+  subtitle?: string    // підзаголовок (після " : ")
+  responsibility?: string // відомості про відповідальність після "/" (напр. "за ред. І. П. Прізвища")
   city: string         // місто видання
   publisher: string    // видавництво (для книги)
   year: string
   pages: string        // "256 с." для книги; "С. 12–20." для статті
   journal: string      // назва журналу/збірника (для статті)
+  volume?: string      // том (для статті), напр. "12"
+  issue?: string       // номер/випуск (для статті), напр. "3"
+  isbn?: string        // ISBN (для книги)
+  doi?: string         // DOI (стаття/електронний)
   url: string          // для електронного ресурсу
+  resourceType?: string // тип електронного ресурсу, напр. "Веб-сайт" (default)
   accessDate: string   // дата звернення (для електронного ресурсу)
 }
 
@@ -267,6 +274,13 @@ export interface SourcesBlock {
   type: 'sources'
   title?: string       // heading shown above the list (default "Список використаних джерел")
   entries: SourceEntry[]
+  // Formatting — applies to the heading AND every source entry line.
+  bold?: boolean
+  align?: 'left' | 'center' | 'right' | 'justify'
+  fontSize?: number    // pt
+  fontFamily?: string
+  lineSpacing?: number
+  color?: string       // hex without '#'
 }
 
 export interface DocColumn {
@@ -296,32 +310,77 @@ export type ReportBlock =
   | SourcesBlock
   | ColumnsBlock
 
-// Format one source entry per ДСТУ 8302:2015 (simplified).
+// Split a comma-separated authors string into individual names.
+function splitAuthors(raw: string): string[] {
+  return raw.split(',').map(a => a.trim()).filter(Boolean)
+}
+
+// Ensure a string ends with a sentence-final period (ignoring a trailing ")" or
+// existing punctuation), used between ДСТУ description zones.
+function dot(s: string): string {
+  const t = s.trim()
+  if (!t) return ''
+  return /[.!?]$/.test(t) ? t : t + '.'
+}
+
+// Format the title zone: "Назва : підзаголовок / відомості про відповідальність".
+function titleZone(e: SourceEntry, authors: string[]): string {
+  let zone = e.title.trim()
+  if (e.subtitle?.trim()) zone += ` : ${e.subtitle.trim()}`
+
+  // Responsibility (after "/"). Default rule per ДСТУ 8302:
+  //   1 author      → first goes in the heading; no "/ ..." needed.
+  //   2–3 authors    → list all after "/".
+  //   4+ authors     → "/ <first> та ін.".
+  // An explicit responsibility (e.g. "за ред. ...") overrides the auto rule.
+  const resp = e.responsibility?.trim()
+  if (resp) {
+    zone += ` / ${resp}`
+  } else if (authors.length >= 2 && authors.length <= 3) {
+    zone += ` / ${authors.join(', ')}`
+  } else if (authors.length >= 4) {
+    zone += ` / ${authors[0]} та ін.`
+  }
+  return zone
+}
+
+// Format one source entry per ДСТУ 8302:2015.
 export function formatSourceDSTU(e: SourceEntry): string {
   const dash = '–'
   const parts: string[] = []
-  const authors = e.authors.trim()
-  const title = e.title.trim()
+  const authors = splitAuthors(e.authors)
+
+  // Heading: the FIRST author leads the reference (when there is exactly one
+  // author, or as the lead for multi-author works). Title-led entries (no
+  // authors) start with the title.
+  const heading = authors.length === 1 ? authors[0]!.trim() : (authors[0]?.trim() ?? '')
+  if (heading) parts.push(dot(heading))
+
+  const titlePart = titleZone(e, authors)
+  if (titlePart) parts.push(dot(titlePart))
 
   if (e.type === 'book') {
-    // Автори. Назва. Місто : Видавництво, Рік. Сторінки.
-    if (authors) parts.push(authors.endsWith('.') ? authors : authors + '.')
-    if (title) parts.push(title.endsWith('.') ? title : title + '.')
+    // Місто : Видавництво, рік. Обсяг. ISBN.
     const imprint = [e.city.trim(), e.publisher.trim()].filter(Boolean).join(' : ')
     const tail = [imprint, e.year.trim()].filter(Boolean).join(', ')
-    if (tail) parts.push(tail + '.')
-    if (e.pages.trim()) parts.push(e.pages.trim().endsWith('.') ? e.pages.trim() : e.pages.trim() + '.')
+    if (tail) parts.push(dot(tail))
+    if (e.pages.trim()) parts.push(dot(e.pages.trim()))
+    if (e.isbn?.trim()) parts.push(dot(`ISBN ${e.isbn.trim().replace(/^ISBN\s*/i, '')}`))
   } else if (e.type === 'article') {
-    // Автори. Назва статті. Назва журналу. Рік. Сторінки.
-    if (authors) parts.push(authors.endsWith('.') ? authors : authors + '.')
-    if (title) parts.push(title.endsWith('.') ? title : title + '.')
-    if (e.journal.trim()) parts.push(`${e.journal.trim()}.`)
-    if (e.year.trim()) parts.push(`${e.year.trim()}.`)
-    if (e.pages.trim()) parts.push(e.pages.trim().endsWith('.') ? e.pages.trim() : e.pages.trim() + '.')
+    // Назва журналу. Рік. Том, № N. С. 12–20. DOI.
+    if (e.journal.trim()) parts.push(dot(e.journal.trim()))
+    if (e.year.trim()) parts.push(dot(e.year.trim()))
+    const vol = e.volume?.trim() ? `Т. ${e.volume.trim()}` : ''
+    const iss = e.issue?.trim() ? `№ ${e.issue.trim().replace(/^№\s*/, '')}` : ''
+    const volIss = [vol, iss].filter(Boolean).join(', ')
+    if (volIss) parts.push(dot(volIss))
+    if (e.pages.trim()) parts.push(dot(e.pages.trim()))
+    if (e.doi?.trim()) parts.push(dot(`DOI: ${e.doi.trim().replace(/^DOI:?\s*/i, '')}`))
   } else {
-    // Електронний ресурс: Автори. Назва. URL: ... (дата звернення: ...).
-    if (authors) parts.push(authors.endsWith('.') ? authors : authors + '.')
-    if (title) parts.push(title.endsWith('.') ? title : title + '.')
+    // Електронний ресурс: [Тип ресурсу.] URL: ... (дата звернення: ...).
+    const rtype = e.resourceType?.trim() || 'Веб-сайт'
+    parts.push(dot(rtype))
+    if (e.doi?.trim()) parts.push(dot(`DOI: ${e.doi.trim().replace(/^DOI:?\s*/i, '')}`))
     if (e.url.trim()) {
       const acc = e.accessDate.trim() ? ` (дата звернення: ${e.accessDate.trim()}).` : ''
       parts.push(`URL: ${e.url.trim()}${acc}`)
