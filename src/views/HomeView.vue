@@ -19,6 +19,7 @@ import TocBlock from '../components/blocks/TocBlock.vue'
 import SourcesBlock from '../components/blocks/SourcesBlock.vue'
 import ColumnsBlock from '../components/blocks/ColumnsBlock.vue'
 import TextToolsBar from '../components/blocks/TextToolsBar.vue'
+import BlockInserter from '../components/blocks/BlockInserter.vue'
 import TitlePageEditor from '../components/editor/TitlePageEditor.vue'
 import TitleTemplateEditor from '../components/editor/TitleTemplateEditor.vue'
 import SettingsEditor from '../components/editor/SettingsEditor.vue'
@@ -147,6 +148,7 @@ watch(doc, scheduleRender, { deep: true })
           </div>
 
           <template v-if="doc">
+            <BlockInserter v-if="doc.blocks.length" @add="store.addBlock($event, undefined, 'start')" />
             <template v-for="block in doc.blocks" :key="block.id">
               <ParagraphBlock
                 v-if="block.type === 'paragraph'"
@@ -247,6 +249,7 @@ watch(doc, scheduleRender, { deep: true })
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
+              <BlockInserter @add="store.addBlock($event, block.id)" />
             </template>
           </template>
 

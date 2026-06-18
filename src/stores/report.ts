@@ -279,7 +279,7 @@ export const useReportStore = defineStore('report', () => {
 
   // --- Blocks ---
 
-  function addBlock(type: ReportBlock['type'], afterId?: string) {
+  function addBlock(type: ReportBlock['type'], afterId?: string, position?: 'start') {
     const doc = activeDocument.value
     if (!doc) return
 
@@ -359,6 +359,12 @@ export const useReportStore = defineStore('report', () => {
           { id: generateId(), width: 50, blocks: [{ id: generateId(), type: 'paragraph', text: 'Текст правого стовпця...' }] },
         ],
       }
+    }
+
+    if (position === 'start') {
+      doc.blocks.unshift(block)
+      touchActive()
+      return
     }
 
     if (afterId) {

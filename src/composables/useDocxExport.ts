@@ -76,38 +76,48 @@ function baseRun(text: string, cfg: FontConfig, bold = false, italic = false): T
   return styledRun(text, cfg, { bold, italic })
 }
 
-// Inline formatting markers, longest-first so ** wins over *:
+// Inline formatting markers. The parser is stateful: a marker toggles its style
+// on/off, so styles nest and combine freely, e.g.
+//   ***bold italic***  →  **_x_**  →  *a `b`*  all work.
 //   **bold**   *italic*   __underline__   `mono`
-// `baseBold` is the block's default weight, so **...** toggles relative to it.
-const INLINE_MARKERS: Array<{ re: RegExp; key: keyof RunStyle }> = [
-  { re: /^\*\*([\s\S]+?)\*\*/, key: 'bold' },
-  { re: /^__([\s\S]+?)__/, key: 'underline' },
-  { re: /^\*([\s\S]+?)\*/, key: 'italic' },
-  { re: /^`([^`]+?)`/, key: 'mono' },
+const MARKERS: Array<{ tok: string; key: keyof RunStyle }> = [
+  { tok: '**', key: 'bold' },
+  { tok: '__', key: 'underline' },
+  { tok: '*', key: 'italic' },
+  { tok: '`', key: 'mono' },
 ]
 
 function inlineRuns(text: string, cfg: FontConfig, baseBold = false): TextRun[] {
   const runs: TextRun[] = []
+  const active: RunStyle = { bold: baseBold }
   let buf = ''
-  let i = 0
+
   const flush = () => {
-    if (buf) { runs.push(styledRun(buf, cfg, { bold: baseBold })); buf = '' }
+    if (buf) {
+      runs.push(styledRun(buf, cfg, { ...active }))
+      buf = ''
+    }
   }
+
+  let i = 0
   while (i < text.length) {
-    const rest = text.slice(i)
+    if (active.mono) {
+      if (text[i] === '`') { flush(); active.mono = false; i += 1; continue }
+      buf += text[i]; i += 1; continue
+    }
+
     let matched = false
-    for (const { re, key } of INLINE_MARKERS) {
-      const m = re.exec(rest)
-      if (m) {
+    for (const { tok, key } of MARKERS) {
+      if (text.startsWith(tok, i)) {
         flush()
-        const st: RunStyle = key === 'bold' ? { bold: !baseBold } : { bold: baseBold, [key]: true }
-        runs.push(styledRun(m[1] ?? '', cfg, st))
-        i += m[0].length
+        if (key === 'bold') active.bold = !active.bold
+        else active[key] = !active[key]
+        i += tok.length
         matched = true
         break
       }
     }
-    if (!matched) { buf += text[i]; i++ }
+    if (!matched) { buf += text[i]; i += 1 }
   }
   flush()
   if (runs.length === 0) runs.push(styledRun('', cfg, { bold: baseBold }))
