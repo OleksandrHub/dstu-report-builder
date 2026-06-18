@@ -17,7 +17,7 @@ import {
   SimpleField,
   SectionType,
   Bookmark,
-  InternalHyperlink,
+  TableOfContents,
   Math as DocMath,
   MathRun,
   MathFraction,
@@ -31,7 +31,7 @@ import {
   convertMillimetersToTwip,
 } from 'docx'
 import type { MathComponent } from 'docx'
-import type { ReportDocument, ReportBlock, ListItem, TitleLineBlock, TitleSpacerBlock, TableRow as DocTableRow, HeaderFooterConfig, NumberingSchemes, DocumentSettings } from '../types/document'
+import type { ReportDocument, ReportBlock, ListItem, TitleLineBlock, TitleSpacerBlock, TableRow as DocTableRow, HeaderFooterConfig, NumberingSchemes } from '../types/document'
 import { resolveTitleVars, formatSourceDSTU } from '../types/document'
 import { renderFormulaPng, type FormulaImage } from './useFormulaImage'
 
@@ -472,63 +472,7 @@ function buildTitlePage(
   return result
 }
 
-interface TocEntry { id: string; text: string; level: number; page: number }
-
-// Estimate the page each heading lands on, by accumulating approximate line
-// counts for every block. Rough (±1 page) but works in all viewers since the
-// number is written as plain text, not a recomputed field.
-function estimateTocEntries(doc: ReportDocument, s: DocumentSettings): TocEntry[] {
-  const startPage = s.pageNumberStart ?? 1
-  // Lines that fit on one page within the content height.
-  const pageHeightCm = 29.7 - s.marginTop - s.marginBottom
-  const lineCm = s.fontSize * s.lineSpacing * (2.54 / 72)
-  const linesPerPage = Math.max(1, Math.floor(pageHeightCm / lineCm))
-
-  let line = 0 // running line counter within the body (title page is separate)
-  const pageOf = () => startPage + 1 + Math.floor(line / linesPerPage)
-  const entries: TocEntry[] = []
-
-  const approxLines = (text: string, charsPerLine = 90) =>
-    Math.max(1, Math.ceil((text?.length || 1) / charsPerLine))
-
-  for (const b of doc.blocks) {
-    if (b.type === 'heading') {
-      entries.push({
-        id: b.id,
-        text: b.text.replace(/\\([*_`{}])/g, '$1').replace(/\*\*|__|[*`]/g, ''),
-        level: b.level,
-        page: pageOf(),
-      })
-      line += 2
-    } else if (b.type === 'pageBreak') {
-      // jump to the top of the next page
-      line = Math.ceil((line + 1) / linesPerPage) * linesPerPage
-    } else if (b.type === 'paragraph' || b.type === 'text') {
-      line += approxLines(b.text)
-    } else if (b.type === 'spacer') {
-      line += b.lines ?? 1
-    } else if (b.type === 'list') {
-      const count = (items: typeof b.items): number =>
-        items.reduce((n, it) => n + 1 + (it.children ? count(it.children) : 0), 0)
-      line += count(b.items) + (b.introText ? 1 : 0)
-    } else if (b.type === 'code') {
-      line += (b.code.split('\n').length) + 3
-    } else if (b.type === 'image') {
-      line += Math.ceil((b.height ?? 300) / 28) + 3
-    } else if (b.type === 'table') {
-      line += b.rows.length + 3
-    } else if (b.type === 'formula') {
-      line += 3
-    } else if (b.type === 'sources') {
-      line += b.entries.length + 1
-    } else if (b.type === 'columns') {
-      line += 6
-    }
-  }
-  return entries
-}
-
-type BodyEl = Paragraph | Table
+type BodyEl = Paragraph | Table | TableOfContents
 
 function buildBlock(
   block: ReportBlock,
@@ -593,44 +537,21 @@ function buildBlock(
 
   if (block.type === 'toc') {
     const title = block.title ?? 'Зміст'
-    const result: BodyEl[] = [
+    // A real Word table-of-contents field, built from the Heading 1–3 styles.
+    // Word/OnlyOffice populate and paginate it themselves (updateFields on open,
+    // or Ctrl+A → F9). This is the standard mechanism, identical to Insert → TOC.
+    return [
       new Paragraph({
         children: inlineRuns(title, cfg, true),
         alignment: AlignmentType.CENTER,
         spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
       }),
+      new TableOfContents(title, {
+        hyperlink: true,
+        headingStyleRange: '1-3',
+        captionLabel: undefined,
+      }),
     ]
-
-    const contentTwips = cmToTwip(21 - s.marginLeft - s.marginRight)
-    const headings = estimateTocEntries(doc, s)
-
-    if (headings.length === 0) {
-      result.push(bodyParagraph([baseRun('(немає заголовків для змісту)', cfg, false, true)], cfg, true))
-      return result
-    }
-
-    // Visible entries with ESTIMATED page numbers as plain text — shows up
-    // identically in Word, OnlyOffice and preview (none of them recompute the
-    // TOC field reliably). The hyperlink still jumps to the heading bookmark;
-    // the PAGEREF field is appended too so Word can refine the number on F9.
-    for (const e of headings) {
-      const bm = tocBookmarkId(e.id)
-      const indent = (e.level - 1) * 0.75
-      result.push(new Paragraph({
-        children: [
-          new InternalHyperlink({
-            anchor: bm,
-            children: [new TextRun({ text: e.text, font: cfg.name, size: cfg.size })],
-          }),
-          new TextRun({ text: '\t', font: cfg.name, size: cfg.size }),
-          new TextRun({ text: String(e.page), font: cfg.name, size: cfg.size }),
-        ],
-        tabStops: [{ type: TabStopType.RIGHT, position: contentTwips, leader: 'dot' as never }],
-        indent: { left: cmToTwip(indent) },
-        spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
-      }))
-    }
-    return result
   }
 
   if (block.type === 'spacer') {

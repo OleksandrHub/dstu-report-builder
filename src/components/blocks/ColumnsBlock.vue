@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import type { ColumnsBlock, ReportBlock } from '../../types/document'
+import type { ColumnsBlock, ReportBlock, ParagraphBlock, HeadingBlock } from '../../types/document'
 import { useReportStore } from '../../stores/report'
+import BlockStyleRow from './BlockStyleRow.vue'
 
 const props = defineProps<{ block: ColumnsBlock }>()
 const emit = defineEmits<{
@@ -15,6 +16,15 @@ const store = useReportStore()
 
 function innerText(b: ReportBlock): string {
   return b.type === 'paragraph' || b.type === 'heading' ? b.text : ''
+}
+
+// A styleable inner block (paragraph/heading) exposes the same fields BlockStyleRow needs.
+function styleable(b: ReportBlock): ParagraphBlock | HeadingBlock | null {
+  return b.type === 'paragraph' || b.type === 'heading' ? b : null
+}
+
+function updInner(colId: string, innerId: string, data: Partial<ReportBlock>) {
+  store.updateColumnBlock(props.block.id, colId, innerId, data)
 }
 </script>
 
@@ -52,14 +62,20 @@ function innerText(b: ReportBlock): string {
         </div>
 
         <div v-for="inner in col.blocks" :key="inner.id" class="column-inner">
-          <textarea
-            v-if="inner.type === 'paragraph' || inner.type === 'heading'"
-            class="block-textarea"
-            rows="2"
-            :value="innerText(inner)"
-            @input="store.updateColumnBlock(props.block.id, col.id, inner.id, { text: ($event.target as HTMLTextAreaElement).value } as never)"
-            :placeholder="inner.type === 'heading' ? 'Заголовок…' : 'Текст…'"
-          />
+          <template v-if="styleable(inner)">
+            <textarea
+              class="block-textarea"
+              rows="2"
+              :value="innerText(inner)"
+              @input="updInner(col.id, inner.id, { text: ($event.target as HTMLTextAreaElement).value } as never)"
+              :placeholder="inner.type === 'heading' ? 'Заголовок…' : 'Текст…'"
+            />
+            <BlockStyleRow
+              :block="styleable(inner)!"
+              :default-align="inner.type === 'heading' ? 'center' : 'left'"
+              @update="updInner(col.id, inner.id, $event)"
+            />
+          </template>
           <div v-else class="block-hint">[{{ inner.type }}]</div>
           <button class="btn-icon btn-danger column-inner-del" @click="store.removeColumnBlock(props.block.id, col.id, inner.id)">✕</button>
         </div>

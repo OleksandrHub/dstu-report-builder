@@ -214,6 +214,20 @@ export const useReportStore = defineStore('report', () => {
     if (doc) doc.updatedAt = new Date().toISOString()
   }
 
+  // Find a block by id in the body OR inside a titleContent wrapper in the title
+  // layout — so block editors work the same whether the block sits in the body
+  // or in the title.
+  function findBlockById(blockId: string): ReportBlock | undefined {
+    const doc = activeDocument.value
+    if (!doc) return undefined
+    const inBody = doc.blocks.find(b => b.id === blockId)
+    if (inBody) return inBody
+    for (const tb of doc.titleTemplate) {
+      if (tb.type === 'titleContent' && tb.block.id === blockId) return tb.block
+    }
+    return undefined
+  }
+
   // --- Document management ---
 
   function createNewDocument(name: string): string {
@@ -524,7 +538,7 @@ export const useReportStore = defineStore('report', () => {
   function addListItem(blockId: string) {
     const doc = activeDocument.value
     if (!doc) return
-    const block = doc.blocks.find(b => b.id === blockId)
+    const block = findBlockById(blockId)
     if (!block || block.type !== 'list') return
     block.items.push({ id: generateId(), text: '' })
     touchActive()
@@ -533,7 +547,7 @@ export const useReportStore = defineStore('report', () => {
   function addSubListItem(blockId: string, parentItemId: string) {
     const doc = activeDocument.value
     if (!doc) return
-    const block = doc.blocks.find(b => b.id === blockId)
+    const block = findBlockById(blockId)
     if (!block || block.type !== 'list') return
     const found = findListItem(block.items, parentItemId)
     if (!found) return
@@ -546,7 +560,7 @@ export const useReportStore = defineStore('report', () => {
   function addSiblingListItem(blockId: string, itemId: string) {
     const doc = activeDocument.value
     if (!doc) return
-    const block = doc.blocks.find(b => b.id === blockId)
+    const block = findBlockById(blockId)
     if (!block || block.type !== 'list') return
     const found = findListItem(block.items, itemId)
     if (!found) return
@@ -558,7 +572,7 @@ export const useReportStore = defineStore('report', () => {
   function removeListItem(blockId: string, itemId: string) {
     const doc = activeDocument.value
     if (!doc) return
-    const block = doc.blocks.find(b => b.id === blockId)
+    const block = findBlockById(blockId)
     if (!block || block.type !== 'list') return
     const found = findListItem(block.items, itemId)
     if (!found) return
@@ -570,7 +584,7 @@ export const useReportStore = defineStore('report', () => {
   function updateListItem(blockId: string, itemId: string, text: string) {
     const doc = activeDocument.value
     if (!doc) return
-    const block = doc.blocks.find(b => b.id === blockId)
+    const block = findBlockById(blockId)
     if (!block || block.type !== 'list') return
     const found = findListItem(block.items, itemId)
     if (found) { found.item.text = text; touchActive() }
@@ -581,7 +595,7 @@ export const useReportStore = defineStore('report', () => {
   function addTableRow(blockId: string) {
     const doc = activeDocument.value
     if (!doc) return
-    const block = doc.blocks.find(b => b.id === blockId)
+    const block = findBlockById(blockId)
     if (!block || block.type !== 'table') return
     const newRow: TableRow = {
       id: generateId(),
@@ -594,7 +608,7 @@ export const useReportStore = defineStore('report', () => {
   function removeTableRow(blockId: string, rowId: string) {
     const doc = activeDocument.value
     if (!doc) return
-    const block = doc.blocks.find(b => b.id === blockId)
+    const block = findBlockById(blockId)
     if (!block || block.type !== 'table') return
     block.rows = block.rows.filter((r: TableRow) => r.id !== rowId)
     touchActive()
@@ -603,7 +617,7 @@ export const useReportStore = defineStore('report', () => {
   function addTableColumn(blockId: string) {
     const doc = activeDocument.value
     if (!doc) return
-    const block = doc.blocks.find(b => b.id === blockId)
+    const block = findBlockById(blockId)
     if (!block || block.type !== 'table') return
     block.headers.push('Стовпець ' + (block.headers.length + 1))
     block.rows.forEach((r: TableRow) => r.cells.push({ text: '' }))
@@ -613,7 +627,7 @@ export const useReportStore = defineStore('report', () => {
   function setTableFullWidth(blockId: string, full: boolean) {
     const doc = activeDocument.value
     if (!doc) return
-    const block = doc.blocks.find(b => b.id === blockId)
+    const block = findBlockById(blockId)
     if (!block || block.type !== 'table') return
     block.fullWidth = full
     touchActive()
@@ -622,7 +636,7 @@ export const useReportStore = defineStore('report', () => {
   function setTableColumnWidth(blockId: string, colIndex: number, pct: number) {
     const doc = activeDocument.value
     if (!doc) return
-    const block = doc.blocks.find(b => b.id === blockId)
+    const block = findBlockById(blockId)
     if (!block || block.type !== 'table') return
     const n = block.headers.length
     // Initialize to an even split if no explicit widths yet.
@@ -636,7 +650,7 @@ export const useReportStore = defineStore('report', () => {
   function resetTableColumnWidths(blockId: string) {
     const doc = activeDocument.value
     if (!doc) return
-    const block = doc.blocks.find(b => b.id === blockId)
+    const block = findBlockById(blockId)
     if (!block || block.type !== 'table') return
     block.columnWidths = undefined
     touchActive()
@@ -645,7 +659,7 @@ export const useReportStore = defineStore('report', () => {
   function importMarkdownTable(blockId: string, md: string): boolean {
     const doc = activeDocument.value
     if (!doc) return false
-    const block = doc.blocks.find(b => b.id === blockId)
+    const block = findBlockById(blockId)
     if (!block || block.type !== 'table') return false
     const parsed = parseMarkdownTable(md)
     if (!parsed || parsed.headers.length === 0) return false
@@ -663,7 +677,7 @@ export const useReportStore = defineStore('report', () => {
   function toggleTableRowSplit(blockId: string, rowId: string) {
     const doc = activeDocument.value
     if (!doc) return
-    const block = doc.blocks.find(b => b.id === blockId)
+    const block = findBlockById(blockId)
     if (!block || block.type !== 'table') return
     const row = block.rows.find((r: TableRow) => r.id === rowId)
     if (!row) return
@@ -674,7 +688,7 @@ export const useReportStore = defineStore('report', () => {
   function removeTableColumn(blockId: string, colIndex: number) {
     const doc = activeDocument.value
     if (!doc) return
-    const block = doc.blocks.find(b => b.id === blockId)
+    const block = findBlockById(blockId)
     if (!block || block.type !== 'table') return
     if (block.headers.length <= 1) return
     block.headers.splice(colIndex, 1)
@@ -687,7 +701,7 @@ export const useReportStore = defineStore('report', () => {
   function findSourcesBlock(blockId: string): SourcesBlock | null {
     const doc = activeDocument.value
     if (!doc) return null
-    const b = doc.blocks.find(x => x.id === blockId)
+    const b = findBlockById(blockId)
     return b && b.type === 'sources' ? b : null
   }
 
@@ -730,9 +744,7 @@ export const useReportStore = defineStore('report', () => {
   // --- Columns helpers ---
 
   function findColumnsBlock(blockId: string): ColumnsBlock | null {
-    const doc = activeDocument.value
-    if (!doc) return null
-    const b = doc.blocks.find(x => x.id === blockId)
+    const b = findBlockById(blockId)
     return b && b.type === 'columns' ? b : null
   }
 
