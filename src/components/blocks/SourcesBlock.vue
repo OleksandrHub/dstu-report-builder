@@ -7,6 +7,7 @@ const props = defineProps<{ block: SourcesBlock }>()
 const emit = defineEmits<{
   update: [data: Partial<SourcesBlock>]
   remove: []
+  duplicate: []
   moveUp: []
   moveDown: []
 }>()
@@ -27,6 +28,7 @@ function upd(id: string, data: Partial<SourceEntry>) {
     <div class="block-toolbar">
       <span class="block-type-label">📚 Джерела (ДСТУ 2015)</span>
       <div class="block-actions">
+        <button @click="emit('duplicate')" title="Копіювати">⎘</button>
         <button @click="emit('moveUp')" title="Вгору">↑</button>
         <button @click="emit('moveDown')" title="Вниз">↓</button>
         <button @click="emit('remove')" class="btn-danger" title="Видалити">✕</button>

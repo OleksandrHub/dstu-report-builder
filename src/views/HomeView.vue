@@ -7,6 +7,7 @@ import { useReport } from '../composables/useReport'
 import { useDocxExport } from '../composables/useDocxExport'
 
 import ParagraphBlock from '../components/blocks/ParagraphBlock.vue'
+import TextBlock from '../components/blocks/TextBlock.vue'
 import HeadingBlock from '../components/blocks/HeadingBlock.vue'
 import ListBlockEditor from '../components/blocks/ListBlock.vue'
 import CodeBlockEditor from '../components/blocks/CodeBlock.vue'
@@ -155,6 +156,16 @@ watch(doc, scheduleRender, { deep: true })
                 :block="block"
                 @update="onUpdateBlock(block.id, $event)"
                 @remove="store.removeBlock(block.id)"
+                @duplicate="store.duplicateBlock(block.id)"
+                @move-up="store.moveBlock(block.id, 'up')"
+                @move-down="store.moveBlock(block.id, 'down')"
+              />
+              <TextBlock
+                v-else-if="block.type === 'text'"
+                :block="block"
+                @update="onUpdateBlock(block.id, $event)"
+                @remove="store.removeBlock(block.id)"
+                @duplicate="store.duplicateBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
@@ -163,6 +174,7 @@ watch(doc, scheduleRender, { deep: true })
                 :block="block"
                 @update="onUpdateBlock(block.id, $event)"
                 @remove="store.removeBlock(block.id)"
+                @duplicate="store.duplicateBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
@@ -171,6 +183,7 @@ watch(doc, scheduleRender, { deep: true })
                 :block="block"
                 @update="onUpdateBlock(block.id, $event)"
                 @remove="store.removeBlock(block.id)"
+                @duplicate="store.duplicateBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
@@ -180,6 +193,7 @@ watch(doc, scheduleRender, { deep: true })
                 :index="store.getBlockIndex(block.id, 'code')"
                 @update="onUpdateBlock(block.id, $event)"
                 @remove="store.removeBlock(block.id)"
+                @duplicate="store.duplicateBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
@@ -189,6 +203,7 @@ watch(doc, scheduleRender, { deep: true })
                 :index="store.getBlockIndex(block.id, 'image')"
                 @update="onUpdateBlock(block.id, $event)"
                 @remove="store.removeBlock(block.id)"
+                @duplicate="store.duplicateBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
@@ -198,6 +213,7 @@ watch(doc, scheduleRender, { deep: true })
                 :index="store.getBlockIndex(block.id, 'table')"
                 @update="onUpdateBlock(block.id, $event)"
                 @remove="store.removeBlock(block.id)"
+                @duplicate="store.duplicateBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
@@ -207,6 +223,7 @@ watch(doc, scheduleRender, { deep: true })
                 :index="store.getBlockIndex(block.id, 'formula')"
                 @update="onUpdateBlock(block.id, $event)"
                 @remove="store.removeBlock(block.id)"
+                @duplicate="store.duplicateBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
@@ -214,6 +231,7 @@ watch(doc, scheduleRender, { deep: true })
                 v-else-if="block.type === 'pageBreak'"
                 :block="block"
                 @remove="store.removeBlock(block.id)"
+                @duplicate="store.duplicateBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
@@ -222,6 +240,7 @@ watch(doc, scheduleRender, { deep: true })
                 :block="block"
                 @update="onUpdateBlock(block.id, $event)"
                 @remove="store.removeBlock(block.id)"
+                @duplicate="store.duplicateBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
@@ -230,6 +249,7 @@ watch(doc, scheduleRender, { deep: true })
                 :block="block"
                 @update="onUpdateBlock(block.id, $event)"
                 @remove="store.removeBlock(block.id)"
+                @duplicate="store.duplicateBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
@@ -238,6 +258,7 @@ watch(doc, scheduleRender, { deep: true })
                 :block="block"
                 @update="onUpdateBlock(block.id, $event)"
                 @remove="store.removeBlock(block.id)"
+                @duplicate="store.duplicateBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
@@ -246,6 +267,7 @@ watch(doc, scheduleRender, { deep: true })
                 :block="block"
                 @update="onUpdateBlock(block.id, $event)"
                 @remove="store.removeBlock(block.id)"
+                @duplicate="store.duplicateBlock(block.id)"
                 @move-up="store.moveBlock(block.id, 'up')"
                 @move-down="store.moveBlock(block.id, 'down')"
               />
@@ -257,6 +279,7 @@ watch(doc, scheduleRender, { deep: true })
             <span class="add-label">Додати блок:</span>
             <div class="add-block-buttons">
               <button @click="store.addBlock('paragraph')">¶ Абзац</button>
+              <button @click="store.addBlock('text')">↳ Текст</button>
               <button @click="store.addBlock('heading')">H Заголовок</button>
               <button @click="store.addBlock('list')">≡ Список</button>
               <button @click="store.addBlock('code')">{ } Код</button>

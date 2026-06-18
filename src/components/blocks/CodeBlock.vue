@@ -6,6 +6,7 @@ const props = defineProps<{ block: CodeBlock; index: number }>()
 const emit = defineEmits<{
   update: [data: Partial<CodeBlock>]
   remove: []
+  duplicate: []
   moveUp: []
   moveDown: []
 }>()
@@ -18,6 +19,7 @@ const languages = ['typescript', 'javascript', 'python', 'java', 'c', 'cpp', 'cs
     <div class="block-toolbar">
       <span class="block-type-label">{ } Код (Лістинг {{ props.index }})</span>
       <div class="block-actions">
+        <button @click="emit('duplicate')" title="Копіювати">⎘</button>
         <button @click="emit('moveUp')" title="Вгору">↑</button>
         <button @click="emit('moveDown')" title="Вниз">↓</button>
         <button @click="emit('remove')" class="btn-danger" title="Видалити">✕</button>
@@ -90,6 +92,11 @@ const languages = ['typescript', 'javascript', 'python', 'java', 'c', 'cpp', 'cs
         title="Міжрядковий інтервал"
       />
     </div>
+    <label class="ref-toggle">
+      <input type="checkbox" :checked="!!props.block.noTrailingSpace"
+        @change="emit('update', { noTrailingSpace: ($event.target as HTMLInputElement).checked })" />
+      <span>Без порожнього рядка знизу</span>
+    </label>
 
     <textarea
       class="block-textarea code-textarea"

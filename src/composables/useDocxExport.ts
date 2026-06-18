@@ -58,6 +58,7 @@ interface RunStyle {
   italic?: boolean
   underline?: boolean
   mono?: boolean
+  color?: string // hex without '#', overrides cfg.color for this run
 }
 
 function styledRun(text: string, cfg: FontConfig, st: RunStyle): TextRun {
@@ -68,7 +69,7 @@ function styledRun(text: string, cfg: FontConfig, st: RunStyle): TextRun {
     bold: st.bold,
     italics: st.italic,
     underline: st.underline ? {} : undefined,
-    color: cfg.color,
+    color: st.color ?? cfg.color,
   })
 }
 
@@ -80,16 +81,21 @@ function baseRun(text: string, cfg: FontConfig, bold = false, italic = false): T
 // on/off, so styles nest and combine freely, e.g.
 //   ***bold italic***  →  **_x_**  →  *a `b`*  all work.
 //   **bold**   *italic*   __underline__   `mono`
-const MARKERS: Array<{ tok: string; key: keyof RunStyle }> = [
+type BoolStyleKey = 'bold' | 'italic' | 'underline' | 'mono'
+const MARKERS: Array<{ tok: string; key: BoolStyleKey }> = [
   { tok: '**', key: 'bold' },
   { tok: '__', key: 'underline' },
   { tok: '*', key: 'italic' },
   { tok: '`', key: 'mono' },
 ]
 
+// Inline color marker: {#RRGGBB|colored text} or {/} alone resets to default.
+// Escape any marker char with a backslash: \*  \_  \`  \{  \}  \\
 function inlineRuns(text: string, cfg: FontConfig, baseBold = false): TextRun[] {
   const runs: TextRun[] = []
   const active: RunStyle = { bold: baseBold }
+  // Color is a stack so nested {#..|..} restore the outer color on close.
+  const colorStack: (string | undefined)[] = []
   let buf = ''
 
   const flush = () => {
@@ -101,23 +107,50 @@ function inlineRuns(text: string, cfg: FontConfig, baseBold = false): TextRun[] 
 
   let i = 0
   while (i < text.length) {
+    const ch = text[i]!
+
+    // Backslash escape: emit the next char literally.
+    if (ch === '\\' && i + 1 < text.length) {
+      buf += text[i + 1]
+      i += 2
+      continue
+    }
+
     if (active.mono) {
-      if (text[i] === '`') { flush(); active.mono = false; i += 1; continue }
-      buf += text[i]; i += 1; continue
+      if (ch === '`') { flush(); active.mono = false; i += 1; continue }
+      buf += ch; i += 1; continue
+    }
+
+    // Open color: {#RRGGBB| or {#RGB|
+    const colorOpen = /^\{#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\|/.exec(text.slice(i))
+    if (colorOpen) {
+      flush()
+      let hex = colorOpen[1]!.toUpperCase()
+      if (hex.length === 3) hex = hex.split('').map(c => c + c).join('')
+      colorStack.push(active.color)
+      active.color = hex
+      i += colorOpen[0].length
+      continue
+    }
+    // Close color: }
+    if (ch === '}' && colorStack.length) {
+      flush()
+      active.color = colorStack.pop()
+      i += 1
+      continue
     }
 
     let matched = false
     for (const { tok, key } of MARKERS) {
       if (text.startsWith(tok, i)) {
         flush()
-        if (key === 'bold') active.bold = !active.bold
-        else active[key] = !active[key]
+        active[key] = !active[key]
         i += tok.length
         matched = true
         break
       }
     }
-    if (!matched) { buf += text[i]; i += 1 }
+    if (!matched) { buf += ch; i += 1 }
   }
   flush()
   if (runs.length === 0) runs.push(styledRun('', cfg, { bold: baseBold }))
@@ -412,10 +445,14 @@ function buildTitlePage(doc: ReportDocument, cfg: FontConfig): Paragraph[] {
     } else {
       const line = block as TitleLineBlock
       const resolved = resolveTitleVars(line.text, doc.titlePage)
+      const lCfg = { ...cfg }
+      if (line.fontSize) lCfg.size = ptToHalfPt(line.fontSize)
+      if (line.lineSpacing !== undefined) lCfg.lineSpacing = line.lineSpacing
+      if (line.color) lCfg.color = line.color
       result.push(new Paragraph({
-        children: inlineRuns(resolved, cfg, line.bold),
+        children: inlineRuns(resolved, lCfg, line.bold),
         alignment: ALIGN_MAP[line.align] ?? AlignmentType.LEFT,
-        spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+        spacing: { line: Math.round(lCfg.lineSpacing * 240), lineRule: 'auto' as never },
         indent: {
           left: line.paddingLeft ? cmToTwip(line.paddingLeft) : undefined,
           right: line.paddingRight ? cmToTwip(line.paddingRight) : undefined,
@@ -608,6 +645,7 @@ function buildBlock(
     if (block.caption) {
       result.push(captionParagraph(`${s.formulaPrefix} ${num} – ${block.caption}`, cfg))
     }
+    if (!block.noTrailingSpace) result.push(emptyParagraph(cfg))
 
     return result
   }
@@ -619,35 +657,40 @@ function buildBlock(
       result.push(bodyParagraph(inlineRuns(block.introText, cfg), cfg))
     }
 
-    block.items.forEach((item: ListItem, idx: number) => {
-      const isLast = idx === block.items.length - 1
-      let text = item.text.trim()
-      if (!text) return
-
-      if (block.ordered) {
-        text = text.charAt(0).toUpperCase() + text.slice(1)
-        text = text.replace(/[;.,]$/, '') + '.'
-        result.push(
-          new Paragraph({
-            children: inlineRuns(`${idx + 1}. ${text}`, cfg),
-            alignment: AlignmentType.JUSTIFIED,
-            spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
-            indent: { firstLine: cmToTwip(cfg.paragraphIndent) },
-          })
-        )
-      } else {
-        text = text.charAt(0).toLowerCase() + text.slice(1)
-        text = text.replace(/[;.,]$/, '') + (isLast ? '.' : ';')
-        result.push(
-          new Paragraph({
-            children: inlineRuns(`– ${text}`, cfg),
-            alignment: AlignmentType.JUSTIFIED,
-            spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
-            indent: { left: cmToTwip(cfg.paragraphIndent) },
-          })
-        )
-      }
-    })
+    // Render items recursively; sub-lists are indented one level deeper.
+    const renderItems = (items: ListItem[], ordered: boolean, level: number) => {
+      items.forEach((item, idx) => {
+        const isLast = idx === items.length - 1
+        let text = item.text.trim()
+        const baseIndent = cmToTwip(cfg.paragraphIndent) + cmToTwip(0.75 * level)
+        if (text) {
+          if (ordered) {
+            text = text.charAt(0).toUpperCase() + text.slice(1)
+            text = text.replace(/[;.,]$/, '') + '.'
+            result.push(new Paragraph({
+              children: inlineRuns(`${idx + 1}. ${text}`, cfg),
+              alignment: AlignmentType.JUSTIFIED,
+              spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+              indent: { left: baseIndent, hanging: cmToTwip(0.5) },
+            }))
+          } else {
+            text = text.charAt(0).toLowerCase() + text.slice(1)
+            text = text.replace(/[;.,]$/, '') + (isLast ? '.' : ';')
+            result.push(new Paragraph({
+              children: inlineRuns(`– ${text}`, cfg),
+              alignment: AlignmentType.JUSTIFIED,
+              spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+              indent: { left: baseIndent, hanging: cmToTwip(0.5) },
+            }))
+          }
+        }
+        // Sub-list (always bullet style for readability).
+        if (item.children && item.children.length) {
+          renderItems(item.children, false, level + 1)
+        }
+      })
+    }
+    renderItems(block.items, block.ordered, 0)
 
     return result
   }
@@ -675,7 +718,7 @@ function buildBlock(
         spacing: { line: Math.round(codeSpacing * 240), lineRule: 'auto' as never },
       })
     )
-    result.push(emptyParagraph(cfg))
+    if (!block.noTrailingSpace) result.push(emptyParagraph(cfg))
 
     return result
   }
@@ -702,9 +745,11 @@ function buildBlock(
         const bytes = new Uint8Array(binary.length)
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
 
+        const w = block.width && block.width > 0 ? block.width : 400
+        const h = block.height && block.height > 0 ? block.height : Math.round(w * 0.75)
         result.push(
           new Paragraph({
-            children: [new ImageRun({ data: bytes, transformation: { width: 400, height: 300 }, type: 'png' })],
+            children: [new ImageRun({ data: bytes, transformation: { width: w, height: h }, type: 'png' })],
             alignment: AlignmentType.CENTER,
           })
         )
@@ -720,7 +765,7 @@ function buildBlock(
         spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
       })
     )
-    result.push(emptyParagraph(cfg))
+    if (!block.noTrailingSpace) result.push(emptyParagraph(cfg))
 
     return result
   }
@@ -832,7 +877,7 @@ function buildBlock(
         columnWidths: colTwips,
       }))
     })
-    result.push(emptyParagraph(cfg))
+    if (!block.noTrailingSpace) result.push(emptyParagraph(cfg))
 
     return result
   }
@@ -912,6 +957,17 @@ async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
   const bodyChildren: BodyEl[] = []
 
   for (const block of doc.blocks) {
+    // Inline text block: append to the previous paragraph (no new line).
+    if (block.type === 'text') {
+      const prev = bodyChildren[bodyChildren.length - 1]
+      if (prev instanceof Paragraph) {
+        for (const run of inlineRuns(block.text, cfg)) prev.addChildElement(run)
+      } else {
+        bodyChildren.push(bodyParagraph(inlineRuns(block.text, cfg), cfg))
+      }
+      continue
+    }
+
     const out: { inlineRef?: string } = {}
     const elements = buildBlock(block, doc, cfg, counters, out, formulaImages)
 

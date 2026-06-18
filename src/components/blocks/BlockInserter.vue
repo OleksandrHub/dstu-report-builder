@@ -9,6 +9,7 @@ const open = ref(false)
 
 const types: { type: ReportBlock['type']; label: string }[] = [
   { type: 'paragraph', label: '¶ Абзац' },
+  { type: 'text', label: '↳ Текст' },
   { type: 'heading', label: 'H Заголовок' },
   { type: 'list', label: '≡ Список' },
   { type: 'code', label: '{ } Код' },

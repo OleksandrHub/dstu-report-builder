@@ -7,6 +7,7 @@ const props = defineProps<{ block: ImageBlock; index: number }>()
 const emit = defineEmits<{
   update: [data: Partial<ImageBlock>]
   remove: []
+  duplicate: []
   moveUp: []
   moveDown: []
 }>()
@@ -29,6 +30,7 @@ function onFileChange(e: Event) {
     <div class="block-toolbar">
       <span class="block-type-label">🖼 Рисунок {{ props.index }}</span>
       <div class="block-actions">
+        <button @click="emit('duplicate')" title="Копіювати">⎘</button>
         <button @click="emit('moveUp')" title="Вгору">↑</button>
         <button @click="emit('moveDown')" title="Вниз">↓</button>
         <button @click="emit('remove')" class="btn-danger" title="Видалити">✕</button>
@@ -89,5 +91,25 @@ function onFileChange(e: Event) {
       style="display: none"
       @change="onFileChange"
     />
+
+    <div class="block-style-row">
+      <span class="style-label">Ширина:</span>
+      <input type="number" min="50" max="900" step="10" class="style-number"
+        :value="props.block.width ?? 400"
+        @input="emit('update', { width: parseInt(($event.target as HTMLInputElement).value) || 400 })"
+        title="Ширина (px)" />
+      <span class="style-unit">px</span>
+      <span class="style-label">Висота:</span>
+      <input type="number" min="0" max="900" step="10" class="style-number"
+        :value="props.block.height ?? ''"
+        @input="emit('update', { height: parseInt(($event.target as HTMLInputElement).value) || undefined })"
+        title="Висота (px), 0 = авто" />
+      <span class="style-unit">px</span>
+    </div>
+    <label class="ref-toggle">
+      <input type="checkbox" :checked="!!props.block.noTrailingSpace"
+        @change="emit('update', { noTrailingSpace: ($event.target as HTMLInputElement).checked })" />
+      <span>Без порожнього рядка знизу</span>
+    </label>
   </div>
 </template>

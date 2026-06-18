@@ -7,6 +7,7 @@ const props = defineProps<{ block: HeadingBlock }>()
 const emit = defineEmits<{
   update: [data: Partial<HeadingBlock>]
   remove: []
+  duplicate: []
   moveUp: []
   moveDown: []
 }>()
@@ -25,6 +26,7 @@ const emit = defineEmits<{
         >H{{ lvl }}</button>
       </div>
       <div class="block-actions">
+        <button @click="emit('duplicate')" title="Копіювати">⎘</button>
         <button @click="emit('moveUp')" title="Вгору">↑</button>
         <button @click="emit('moveDown')" title="Вниз">↓</button>
         <button @click="emit('remove')" class="btn-danger" title="Видалити">✕</button>

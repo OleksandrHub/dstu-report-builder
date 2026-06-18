@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import type { ParagraphBlock } from '../../types/document'
+import type { TextBlock } from '../../types/document'
 import MarkerHint from './MarkerHint.vue'
-import BlockStyleRow from './BlockStyleRow.vue'
 
-const props = defineProps<{ block: ParagraphBlock }>()
+const props = defineProps<{ block: TextBlock }>()
 const emit = defineEmits<{
-  update: [data: Partial<ParagraphBlock>]
+  update: [data: Partial<TextBlock>]
   remove: []
   duplicate: []
   moveUp: []
@@ -14,9 +13,9 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="block paragraph-block">
+  <div class="block text-block">
     <div class="block-toolbar">
-      <span class="block-type-label">¶ Абзац</span>
+      <span class="block-type-label">↳ Текст (без абзацу)</span>
       <div class="block-actions">
         <button @click="emit('duplicate')" title="Копіювати">⎘</button>
         <button @click="emit('moveUp')" title="Вгору">↑</button>
@@ -24,16 +23,13 @@ const emit = defineEmits<{
         <button @click="emit('remove')" class="btn-danger" title="Видалити">✕</button>
       </div>
     </div>
-
     <textarea
       class="block-textarea"
       :value="props.block.text"
       @input="emit('update', { text: ($event.target as HTMLTextAreaElement).value })"
-      rows="3"
-      placeholder="Текст абзацу..."
+      rows="2"
+      placeholder="Текст, що дописується в кінець попереднього абзацу…"
     />
     <MarkerHint />
-
-    <BlockStyleRow :block="props.block" default-align="justify" @update="emit('update', $event)" />
   </div>
 </template>

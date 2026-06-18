@@ -286,26 +286,27 @@ export const useReportStore = defineStore('report', () => {
     let block: ReportBlock
 
     if (type === 'paragraph') {
-      block = { id: generateId(), type: 'paragraph', text: 'Текст абзацу...' }
+      block = { id: generateId(), type: 'paragraph', text: '' }
+    } else if (type === 'text') {
+      block = { id: generateId(), type: 'text', text: '' }
     } else if (type === 'heading') {
-      block = { id: generateId(), type: 'heading', text: 'Заголовок', level: 1 }
+      block = { id: generateId(), type: 'heading', text: '', level: 1 }
     } else if (type === 'list') {
       block = {
         id: generateId(),
         type: 'list',
         ordered: false,
         items: [
-          { id: generateId(), text: 'перший елемент' },
-          { id: generateId(), text: 'другий елемент' },
+          { id: generateId(), text: '' },
         ],
-        introText: 'Перелік містить наступні елементи:',
+        introText: '',
       }
     } else if (type === 'code') {
       block = {
         id: generateId(),
         type: 'code',
-        caption: 'Назва лістингу',
-        code: '// Ваш код тут\n',
+        caption: '',
+        code: '',
         language: 'typescript',
         referenceText: 'Код програми подано у лістингу {no}.',
       }
@@ -314,14 +315,14 @@ export const useReportStore = defineStore('report', () => {
         id: generateId(),
         type: 'image',
         src: '',
-        caption: 'Назва рисунка',
+        caption: '',
         referenceText: 'Результат роботи програми наведено на рисунку {no}.',
       }
     } else if (type === 'table') {
       block = {
         id: generateId(),
         type: 'table',
-        caption: 'Назва таблиці',
+        caption: '',
         headers: ['Стовпець 1', 'Стовпець 2'],
         rows: [
           { id: generateId(), cells: [{ text: '' }, { text: '' }] },
@@ -406,12 +407,18 @@ export const useReportStore = defineStore('report', () => {
       if (out !== s) changed++
       return out
     }
+    const applyItems = (items: ListItem[]) => {
+      items.forEach(i => {
+        i.text = apply(i.text)!
+        if (i.children) applyItems(i.children)
+      })
+    }
     for (const b of doc.blocks) {
-      if (b.type === 'paragraph' || b.type === 'heading') {
+      if (b.type === 'paragraph' || b.type === 'heading' || b.type === 'text') {
         b.text = apply(b.text)!
       } else if (b.type === 'list') {
         if (b.introText !== undefined) b.introText = apply(b.introText)
-        b.items.forEach(i => { i.text = apply(i.text)! })
+        applyItems(b.items)
       } else if (b.type === 'code') {
         b.caption = apply(b.caption)!
         b.code = apply(b.code)!
@@ -454,6 +461,29 @@ export const useReportStore = defineStore('report', () => {
     touchActive()
   }
 
+  // Deep-clone a block and assign fresh ids to it and every nested entity.
+  function cloneBlockWithNewIds(block: ReportBlock): ReportBlock {
+    const copy = JSON.parse(JSON.stringify(block)) as ReportBlock
+    const reid = (o: { id?: string }) => { if (o && typeof o === 'object' && 'id' in o) o.id = generateId() }
+    copy.id = generateId()
+    const reItems = (items?: ListItem[]) => items?.forEach(i => { reid(i); reItems(i.children) })
+    if (copy.type === 'list') reItems(copy.items)
+    else if (copy.type === 'table') copy.rows.forEach(reid)
+    else if (copy.type === 'sources') copy.entries.forEach(reid)
+    else if (copy.type === 'columns') copy.columns.forEach(c => { reid(c); c.blocks.forEach(reid) })
+    return copy
+  }
+
+  function duplicateBlock(id: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const idx = doc.blocks.findIndex(b => b.id === id)
+    if (idx === -1) return
+    const copy = cloneBlockWithNewIds(doc.blocks[idx]!)
+    doc.blocks.splice(idx + 1, 0, copy)
+    touchActive()
+  }
+
   function moveBlock(id: string, direction: 'up' | 'down') {
     const doc = activeDocument.value
     if (!doc) return
@@ -479,6 +509,18 @@ export const useReportStore = defineStore('report', () => {
 
   // --- List helpers ---
 
+  // Find an item (and its sibling array) anywhere in a nested list tree.
+  function findListItem(items: ListItem[], itemId: string): { item: ListItem; siblings: ListItem[] } | null {
+    for (const i of items) {
+      if (i.id === itemId) return { item: i, siblings: items }
+      if (i.children) {
+        const found = findListItem(i.children, itemId)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
   function addListItem(blockId: string) {
     const doc = activeDocument.value
     if (!doc) return
@@ -488,12 +530,27 @@ export const useReportStore = defineStore('report', () => {
     touchActive()
   }
 
+  function addSubListItem(blockId: string, parentItemId: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const block = doc.blocks.find(b => b.id === blockId)
+    if (!block || block.type !== 'list') return
+    const found = findListItem(block.items, parentItemId)
+    if (!found) return
+    if (!found.item.children) found.item.children = []
+    found.item.children.push({ id: generateId(), text: '' })
+    touchActive()
+  }
+
   function removeListItem(blockId: string, itemId: string) {
     const doc = activeDocument.value
     if (!doc) return
     const block = doc.blocks.find(b => b.id === blockId)
     if (!block || block.type !== 'list') return
-    block.items = block.items.filter((i: ListItem) => i.id !== itemId)
+    const found = findListItem(block.items, itemId)
+    if (!found) return
+    const idx = found.siblings.findIndex(i => i.id === itemId)
+    if (idx !== -1) found.siblings.splice(idx, 1)
     touchActive()
   }
 
@@ -502,8 +559,8 @@ export const useReportStore = defineStore('report', () => {
     if (!doc) return
     const block = doc.blocks.find(b => b.id === blockId)
     if (!block || block.type !== 'list') return
-    const item = block.items.find((i: ListItem) => i.id === itemId)
-    if (item) { item.text = text; touchActive() }
+    const found = findListItem(block.items, itemId)
+    if (found) { found.item.text = text; touchActive() }
   }
 
   // --- Table helpers ---
@@ -878,9 +935,11 @@ export const useReportStore = defineStore('report', () => {
     updateColumnBlock,
     removeColumnBlock,
     removeBlock,
+    duplicateBlock,
     moveBlock,
     updateBlock,
     addListItem,
+    addSubListItem,
     removeListItem,
     updateListItem,
     addTableRow,

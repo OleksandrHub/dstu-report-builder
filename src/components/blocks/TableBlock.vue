@@ -8,6 +8,7 @@ const props = defineProps<{ block: TableBlock; index: number }>()
 const emit = defineEmits<{
   update: [data: Partial<TableBlock>]
   remove: []
+  duplicate: []
   moveUp: []
   moveDown: []
 }>()
@@ -76,6 +77,7 @@ function openMdWithCurrent() {
     <div class="block-toolbar">
       <span class="block-type-label">⊞ Таблиця {{ props.index }}</span>
       <div class="block-actions">
+        <button @click="emit('duplicate')" title="Копіювати">⎘</button>
         <button @click="emit('moveUp')" title="Вгору">↑</button>
         <button @click="emit('moveDown')" title="Вниз">↓</button>
         <button @click="emit('remove')" class="btn-danger" title="Видалити">✕</button>
@@ -145,6 +147,11 @@ function openMdWithCurrent() {
         @change="store.setTableFullWidth(props.block.id, ($event.target as HTMLInputElement).checked)"
       />
       <span>На всю ширину сторінки</span>
+    </label>
+    <label class="ref-toggle">
+      <input type="checkbox" :checked="!!props.block.noTrailingSpace"
+        @change="emit('update', { noTrailingSpace: ($event.target as HTMLInputElement).checked })" />
+      <span>Без порожнього рядка знизу</span>
     </label>
 
     <div class="col-width-row">

@@ -5,6 +5,7 @@ const props = defineProps<{ block: SpacerBlock }>()
 const emit = defineEmits<{
   update: [data: Partial<SpacerBlock>]
   remove: []
+  duplicate: []
   moveUp: []
   moveDown: []
 }>()
@@ -15,6 +16,7 @@ const emit = defineEmits<{
     <div class="block-toolbar">
       <span class="block-type-label">↵ Порожній рядок</span>
       <div class="block-actions">
+        <button @click="emit('duplicate')" title="Копіювати">⎘</button>
         <button @click="emit('moveUp')" title="Вгору">↑</button>
         <button @click="emit('moveDown')" title="Вниз">↓</button>
         <button @click="emit('remove')" class="btn-danger" title="Видалити">✕</button>

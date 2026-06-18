@@ -71,6 +71,14 @@ export interface ParagraphBlock {
   color?: string      // hex without '#', e.g. 'FF0000'
 }
 
+// Inline text: appended to the end of the previous paragraph (no new line),
+// supports the same inline markers as a paragraph.
+export interface TextBlock {
+  id: string
+  type: 'text'
+  text: string
+}
+
 export interface HeadingBlock {
   id: string
   type: 'heading'
@@ -105,6 +113,7 @@ export interface TocBlock {
 export interface ListItem {
   id: string
   text: string
+  children?: ListItem[] // nested sub-list
 }
 
 export interface ListBlock {
@@ -125,6 +134,7 @@ export interface CodeBlock {
   inlineReference?: boolean // append referenceText to the previous paragraph instead of a new line
   fontSize?: number     // default 12
   lineSpacing?: number  // default 1.0
+  noTrailingSpace?: boolean // omit the empty line after the block
 }
 
 export interface ImageBlock {
@@ -134,6 +144,9 @@ export interface ImageBlock {
   caption: string
   referenceText?: string
   inlineReference?: boolean
+  noTrailingSpace?: boolean
+  width?: number   // px (display width); height scales proportionally if height unset
+  height?: number  // px
 }
 
 export interface TableCell {
@@ -161,6 +174,7 @@ export interface TableBlock {
   lineSpacing?: number  // default 1.0
   fullWidth?: boolean       // stretch table to the full content width (default true)
   columnWidths?: number[]   // relative width per column in % (must sum ~100); empty = auto/equal
+  noTrailingSpace?: boolean // omit the empty line after the block
 }
 
 export interface WorkIntro {
@@ -221,6 +235,7 @@ export interface FormulaBlock {
   referenceText?: string    // optional in-text reference ("...у формулі {no}.")
   inlineReference?: boolean
   numbered?: boolean         // show equation number on the right (default true)
+  noTrailingSpace?: boolean  // omit the empty line after the block
 }
 
 export type SourceType = 'book' | 'article' | 'electronic'
@@ -260,6 +275,7 @@ export interface ColumnsBlock {
 
 export type ReportBlock =
   | ParagraphBlock
+  | TextBlock
   | HeadingBlock
   | ListBlock
   | CodeBlock
@@ -319,6 +335,9 @@ export interface TitleLineBlock {
   spaceBefore: boolean   // add extra vertical space before this line
   paddingLeft: number    // cm indent from left edge of content area
   paddingRight: number   // cm indent from right edge
+  fontSize?: number      // pt, overrides doc default
+  lineSpacing?: number   // overrides doc default
+  color?: string         // hex without '#'
 }
 
 export interface TitleSpacerBlock {

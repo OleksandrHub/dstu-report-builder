@@ -4,6 +4,7 @@ import type { PageBreakBlock } from '../../types/document'
 defineProps<{ block: PageBreakBlock }>()
 const emit = defineEmits<{
   remove: []
+  duplicate: []
   moveUp: []
   moveDown: []
 }>()
@@ -14,6 +15,7 @@ const emit = defineEmits<{
     <div class="block-toolbar">
       <span class="block-type-label">⤓ Розрив сторінки</span>
       <div class="block-actions">
+        <button @click="emit('duplicate')" title="Копіювати">⎘</button>
         <button @click="emit('moveUp')" title="Вгору">↑</button>
         <button @click="emit('moveDown')" title="Вниз">↓</button>
         <button @click="emit('remove')" class="btn-danger" title="Видалити">✕</button>

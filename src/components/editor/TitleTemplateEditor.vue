@@ -156,6 +156,33 @@ function insertVar(blockId: string, v: string, currentText: string) {
               @input="store.updateTitleBlock(block.id, { paddingRight: parseFloat(($event.target as HTMLInputElement).value) || 0 })"
             />
           </div>
+
+          <!-- Font controls row -->
+          <div class="line-padding-row">
+            <label>Розмір (pt):</label>
+            <input
+              type="number" min="8" max="36" step="1"
+              class="small-number-input"
+              :value="(block as TitleLineBlock).fontSize ?? ''"
+              placeholder="авто"
+              @input="store.updateTitleBlock(block.id, { fontSize: parseInt(($event.target as HTMLInputElement).value) || undefined })"
+            />
+            <label>Інтервал:</label>
+            <input
+              type="number" min="1" max="3" step="0.5"
+              class="small-number-input"
+              :value="(block as TitleLineBlock).lineSpacing ?? ''"
+              placeholder="авто"
+              @input="store.updateTitleBlock(block.id, { lineSpacing: parseFloat(($event.target as HTMLInputElement).value) || undefined })"
+            />
+            <label>Колір:</label>
+            <input
+              type="color"
+              class="style-color"
+              :value="'#' + ((block as TitleLineBlock).color ?? '000000')"
+              @input="store.updateTitleBlock(block.id, { color: ($event.target as HTMLInputElement).value.replace('#','').toUpperCase() })"
+            />
+          </div>
         </template>
       </div>
     </div>
