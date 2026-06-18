@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useReportStore } from '../../stores/report'
-import type { TitleLineBlock, TitleSpacerBlock } from '../../types/document'
+import type { TitleLineBlock, TitleSpacerBlock, TitleContentBlock } from '../../types/document'
+import ParagraphBlock from '../blocks/ParagraphBlock.vue'
+import HeadingBlock from '../blocks/HeadingBlock.vue'
+import ImageBlock from '../blocks/ImageBlock.vue'
+import TableBlock from '../blocks/TableBlock.vue'
+import FormulaBlock from '../blocks/FormulaBlock.vue'
+import ListBlock from '../blocks/ListBlock.vue'
+import ColumnsBlock from '../blocks/ColumnsBlock.vue'
 
 const store = useReportStore()
 const doc = computed(() => store.activeDocument)
@@ -29,6 +36,37 @@ const VARS = [
 function insertVar(blockId: string, v: string, currentText: string) {
   store.updateTitleBlock(blockId, { text: currentText + v } as Partial<TitleLineBlock>)
 }
+
+// Map a content block type to its editor component.
+const contentEditors: Record<string, unknown> = {
+  paragraph: ParagraphBlock, heading: HeadingBlock, image: ImageBlock,
+  table: TableBlock, formula: FormulaBlock, list: ListBlock, columns: ColumnsBlock,
+}
+
+// --- Export / import all templates as a JSON file ---
+const importInput = ref<HTMLInputElement | null>(null)
+
+function exportTpls() {
+  const blob = new Blob([store.exportTemplates()], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'dstu-templates.json'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function onImportFile(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const res = store.importTemplates(String(reader.result), 'merge')
+    alert(res ? `Імпортовано: ${res.layout} макетів, ${res.data} наборів даних` : 'Не вдалося прочитати файл шаблонів')
+  }
+  reader.readAsText(file)
+  ;(e.target as HTMLInputElement).value = ''
+}
 </script>
 
 <template>
@@ -37,6 +75,9 @@ function insertVar(blockId: string, v: string, currentText: string) {
       <button class="btn-sm" @click="store.resetTitleTemplate()" title="Скинути до стандарту">↺ Скинути</button>
       <button class="btn-sm btn-accent" @click="showSavePrompt = !showSavePrompt">💾 Зберегти шаблон</button>
       <button class="btn-sm" @click="showTemplates = !showTemplates">📂 Шаблони ({{ store.titleTemplates.length }})</button>
+      <button class="btn-sm" @click="exportTpls" title="Експорт шаблонів у файл">⬇ Експорт</button>
+      <button class="btn-sm" @click="importInput?.click()" title="Імпорт шаблонів із файлу">⬆ Імпорт</button>
+      <input ref="importInput" type="file" accept="application/json,.json" style="display:none" @change="onImportFile" />
     </div>
 
     <!-- Save as template prompt -->
@@ -184,6 +225,30 @@ function insertVar(blockId: string, v: string, currentText: string) {
             />
           </div>
         </template>
+
+        <!-- CONTENT BLOCK (any body block embedded in the title) -->
+        <template v-if="block.type === 'titleContent'">
+          <div class="title-content-wrap">
+            <div class="title-content-head">
+              <span class="block-type-label">▣ Блок</span>
+              <div class="block-actions">
+                <button @click="store.moveTitleBlock(block.id, 'up')">↑</button>
+                <button @click="store.moveTitleBlock(block.id, 'down')">↓</button>
+                <button class="btn-danger" @click="store.removeTitleBlock(block.id)">✕</button>
+              </div>
+            </div>
+            <component
+              :is="contentEditors[(block as TitleContentBlock).block.type]"
+              :block="(block as TitleContentBlock).block"
+              :index="1"
+              @update="store.updateTitleContentBlock(block.id, $event)"
+              @remove="store.removeTitleBlock(block.id)"
+              @duplicate="store.addTitleContentBlock((block as TitleContentBlock).block.type, block.id)"
+              @move-up="store.moveTitleBlock(block.id, 'up')"
+              @move-down="store.moveTitleBlock(block.id, 'down')"
+            />
+          </div>
+        </template>
       </div>
     </div>
 
@@ -191,6 +256,16 @@ function insertVar(blockId: string, v: string, currentText: string) {
     <div class="add-title-block-row">
       <button class="btn-add-item" @click="store.addTitleBlock('titleLine')">+ Рядок</button>
       <button class="btn-add-item" @click="store.addTitleBlock('titleSpacer')">+ Відступ</button>
+    </div>
+    <div class="add-title-block-row">
+      <span class="add-label">+ Блок:</span>
+      <button class="btn-add-item" @click="store.addTitleContentBlock('paragraph')">¶ Абзац</button>
+      <button class="btn-add-item" @click="store.addTitleContentBlock('heading')">H Заголовок</button>
+      <button class="btn-add-item" @click="store.addTitleContentBlock('image')">🖼 Рисунок</button>
+      <button class="btn-add-item" @click="store.addTitleContentBlock('table')">⊞ Таблиця</button>
+      <button class="btn-add-item" @click="store.addTitleContentBlock('formula')">∑ Формула</button>
+      <button class="btn-add-item" @click="store.addTitleContentBlock('list')">≡ Список</button>
+      <button class="btn-add-item" @click="store.addTitleContentBlock('columns')">▥ Стовпці</button>
     </div>
   </div>
 </template>

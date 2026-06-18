@@ -31,7 +31,7 @@ import {
   convertMillimetersToTwip,
 } from 'docx'
 import type { MathComponent } from 'docx'
-import type { ReportDocument, ReportBlock, ListItem, TitleLineBlock, TitleSpacerBlock, TableRow as DocTableRow, HeaderFooterConfig, NumberingSchemes } from '../types/document'
+import type { ReportDocument, ReportBlock, ListItem, TitleLineBlock, TitleSpacerBlock, TableRow as DocTableRow, HeaderFooterConfig, NumberingSchemes, DocumentSettings } from '../types/document'
 import { resolveTitleVars, formatSourceDSTU } from '../types/document'
 import { renderFormulaPng, type FormulaImage } from './useFormulaImage'
 
@@ -429,8 +429,13 @@ function buildFormulaParagraph(
   return new Paragraph({ children: [mathChild], alignment: AlignmentType.CENTER, spacing: lineSpacing })
 }
 
-function buildTitlePage(doc: ReportDocument, cfg: FontConfig): Paragraph[] {
-  const result: Paragraph[] = []
+function buildTitlePage(
+  doc: ReportDocument,
+  cfg: FontConfig,
+  counters: Counters,
+  formulaImages: Map<string, FormulaImage>,
+): BodyEl[] {
+  const result: BodyEl[] = []
 
   for (const block of doc.titleTemplate) {
     if (block.type === 'titleSpacer') {
@@ -442,6 +447,9 @@ function buildTitlePage(doc: ReportDocument, cfg: FontConfig): Paragraph[] {
           spacing: { before: 0, after: 0, line: lineVal, lineRule: 'auto' as never },
         }))
       }
+    } else if (block.type === 'titleContent') {
+      // A full body block embedded in the title layout.
+      result.push(...buildBlock(block.block, doc, cfg, counters, {}, formulaImages))
     } else {
       const line = block as TitleLineBlock
       const resolved = resolveTitleVars(line.text, doc.titlePage)
@@ -464,6 +472,61 @@ function buildTitlePage(doc: ReportDocument, cfg: FontConfig): Paragraph[] {
   return result
 }
 
+interface TocEntry { id: string; text: string; level: number; page: number }
+
+// Estimate the page each heading lands on, by accumulating approximate line
+// counts for every block. Rough (±1 page) but works in all viewers since the
+// number is written as plain text, not a recomputed field.
+function estimateTocEntries(doc: ReportDocument, s: DocumentSettings): TocEntry[] {
+  const startPage = s.pageNumberStart ?? 1
+  // Lines that fit on one page within the content height.
+  const pageHeightCm = 29.7 - s.marginTop - s.marginBottom
+  const lineCm = s.fontSize * s.lineSpacing * (2.54 / 72)
+  const linesPerPage = Math.max(1, Math.floor(pageHeightCm / lineCm))
+
+  let line = 0 // running line counter within the body (title page is separate)
+  const pageOf = () => startPage + 1 + Math.floor(line / linesPerPage)
+  const entries: TocEntry[] = []
+
+  const approxLines = (text: string, charsPerLine = 90) =>
+    Math.max(1, Math.ceil((text?.length || 1) / charsPerLine))
+
+  for (const b of doc.blocks) {
+    if (b.type === 'heading') {
+      entries.push({
+        id: b.id,
+        text: b.text.replace(/\\([*_`{}])/g, '$1').replace(/\*\*|__|[*`]/g, ''),
+        level: b.level,
+        page: pageOf(),
+      })
+      line += 2
+    } else if (b.type === 'pageBreak') {
+      // jump to the top of the next page
+      line = Math.ceil((line + 1) / linesPerPage) * linesPerPage
+    } else if (b.type === 'paragraph' || b.type === 'text') {
+      line += approxLines(b.text)
+    } else if (b.type === 'spacer') {
+      line += b.lines ?? 1
+    } else if (b.type === 'list') {
+      const count = (items: typeof b.items): number =>
+        items.reduce((n, it) => n + 1 + (it.children ? count(it.children) : 0), 0)
+      line += count(b.items) + (b.introText ? 1 : 0)
+    } else if (b.type === 'code') {
+      line += (b.code.split('\n').length) + 3
+    } else if (b.type === 'image') {
+      line += Math.ceil((b.height ?? 300) / 28) + 3
+    } else if (b.type === 'table') {
+      line += b.rows.length + 3
+    } else if (b.type === 'formula') {
+      line += 3
+    } else if (b.type === 'sources') {
+      line += b.entries.length + 1
+    } else if (b.type === 'columns') {
+      line += 6
+    }
+  }
+  return entries
+}
 
 type BodyEl = Paragraph | Table
 
@@ -538,38 +601,34 @@ function buildBlock(
       }),
     ]
 
-    // Build VISIBLE entries from the document's headings so the TOC shows up in
-    // every viewer (SuperDoc/OnlyOffice don't recompute the TOC field). Each
-    // entry: hyperlink to the heading + dot leader + PAGEREF page number.
     const contentTwips = cmToTwip(21 - s.marginLeft - s.marginRight)
-    const headings = doc.blocks.filter(
-      (b): b is Extract<ReportBlock, { type: 'heading' }> => b.type === 'heading',
-    )
-    for (const h of headings) {
-      const bm = tocBookmarkId(h.id)
-      const indent = (h.level - 1) * 0.75 // cm per level
-      const plain = h.text.replace(/\*\*|__|[*`]/g, '')
+    const headings = estimateTocEntries(doc, s)
+
+    if (headings.length === 0) {
+      result.push(bodyParagraph([baseRun('(немає заголовків для змісту)', cfg, false, true)], cfg, true))
+      return result
+    }
+
+    // Visible entries with ESTIMATED page numbers as plain text — shows up
+    // identically in Word, OnlyOffice and preview (none of them recompute the
+    // TOC field reliably). The hyperlink still jumps to the heading bookmark;
+    // the PAGEREF field is appended too so Word can refine the number on F9.
+    for (const e of headings) {
+      const bm = tocBookmarkId(e.id)
+      const indent = (e.level - 1) * 0.75
       result.push(new Paragraph({
-        // The whole line (text + dot leader + page number) is one hyperlink to
-        // the heading, like Word's native TOC entries.
         children: [
           new InternalHyperlink({
             anchor: bm,
-            children: [
-              new TextRun({ text: plain, font: cfg.name, size: cfg.size }),
-              new TextRun({ text: '\t', font: cfg.name, size: cfg.size }),
-              new SimpleField(`PAGEREF ${bm} \\h`),
-            ],
+            children: [new TextRun({ text: e.text, font: cfg.name, size: cfg.size })],
           }),
+          new TextRun({ text: '\t', font: cfg.name, size: cfg.size }),
+          new TextRun({ text: String(e.page), font: cfg.name, size: cfg.size }),
         ],
         tabStops: [{ type: TabStopType.RIGHT, position: contentTwips, leader: 'dot' as never }],
         indent: { left: cmToTwip(indent) },
         spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
       }))
-    }
-
-    if (headings.length === 0) {
-      result.push(bodyParagraph([baseRun('(немає заголовків для змісту)', cfg, false, true)], cfg, true))
     }
     return result
   }
@@ -658,31 +717,19 @@ function buildBlock(
     }
 
     // Render items recursively; sub-lists are indented one level deeper.
+    // The text is emitted exactly as typed — only the marker (N. / –) is added.
     const renderItems = (items: ListItem[], ordered: boolean, level: number) => {
       items.forEach((item, idx) => {
-        const isLast = idx === items.length - 1
-        let text = item.text.trim()
+        const text = item.text.trim()
         const baseIndent = cmToTwip(cfg.paragraphIndent) + cmToTwip(0.75 * level)
         if (text) {
-          if (ordered) {
-            text = text.charAt(0).toUpperCase() + text.slice(1)
-            text = text.replace(/[;.,]$/, '') + '.'
-            result.push(new Paragraph({
-              children: inlineRuns(`${idx + 1}. ${text}`, cfg),
-              alignment: AlignmentType.JUSTIFIED,
-              spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
-              indent: { left: baseIndent, hanging: cmToTwip(0.5) },
-            }))
-          } else {
-            text = text.charAt(0).toLowerCase() + text.slice(1)
-            text = text.replace(/[;.,]$/, '') + (isLast ? '.' : ';')
-            result.push(new Paragraph({
-              children: inlineRuns(`– ${text}`, cfg),
-              alignment: AlignmentType.JUSTIFIED,
-              spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
-              indent: { left: baseIndent, hanging: cmToTwip(0.5) },
-            }))
-          }
+          const marker = ordered ? `${idx + 1}. ` : '– '
+          result.push(new Paragraph({
+            children: inlineRuns(`${marker}${text}`, cfg),
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+            indent: { left: baseIndent, hanging: cmToTwip(0.5) },
+          }))
         }
         // Sub-list (always bullet style for readability).
         if (item.children && item.children.length) {
@@ -946,14 +993,18 @@ async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
   // Pre-render all formulas to PNG (async). KaTeX→PNG works everywhere
   // (Word, OnlyOffice, preview), unlike OMML which OnlyOffice can't show.
   const formulaImages = new Map<string, FormulaImage>()
-  for (const block of doc.blocks) {
-    if (block.type === 'formula' && block.latex.trim()) {
-      const img = await renderFormulaPng(block.latex, Math.round(s.fontSize * 1.6))
-      if (img) formulaImages.set(block.id, img)
+  const renderFormula = async (b: ReportBlock) => {
+    if (b.type === 'formula' && b.latex.trim()) {
+      const img = await renderFormulaPng(b.latex, Math.round(s.fontSize * 1.6))
+      if (img) formulaImages.set(b.id, img)
     }
   }
+  for (const block of doc.blocks) await renderFormula(block)
+  for (const tb of doc.titleTemplate) {
+    if (tb.type === 'titleContent') await renderFormula(tb.block)
+  }
 
-  const titleChildren = buildTitlePage(doc, cfg)
+  const titleChildren = buildTitlePage(doc, cfg, counters, formulaImages)
   const bodyChildren: BodyEl[] = []
 
   for (const block of doc.blocks) {

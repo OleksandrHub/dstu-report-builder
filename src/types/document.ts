@@ -346,12 +346,20 @@ export interface TitleSpacerBlock {
   lines: number          // number of text lines (converted to cm using doc font settings)
 }
 
+// Wraps any regular body block (paragraph, image, table, formula…) so the title
+// layout can use the full block toolbox, not just lines and spacers.
+export interface TitleContentBlock {
+  id: string
+  type: 'titleContent'
+  block: ReportBlock
+}
+
 // lines × fontSize(pt) × lineSpacing × (2.54/72) = height in cm
 export function spacerHeightCm(lines: number, fontSizePt: number, lineSpacing: number): number {
   return lines * fontSizePt * lineSpacing * (2.54 / 72)
 }
 
-export type TitleBlock = TitleLineBlock | TitleSpacerBlock
+export type TitleBlock = TitleLineBlock | TitleSpacerBlock | TitleContentBlock
 
 export interface TitlePageTemplate {
   id: string
@@ -395,7 +403,7 @@ export const DEFAULT_SETTINGS: DocumentSettings = {
   listingPrefix: 'Лістинг',
   tablePrefix: 'Таблиця',
   header: { mode: 'none', text: '', align: 'right', fontSize: 12, fontFamily: 'Times New Roman' },
-  footer: { mode: 'pageNumber', text: '', align: 'center', fontSize: 12, fontFamily: 'Times New Roman' },
+  footer: { mode: 'pageNumber', text: '', align: 'right', fontSize: 12, fontFamily: 'Times New Roman' },
   differentFirstPage: true,
   pageNumberStart: 1,
   numbering: { image: 'plain', table: 'plain', code: 'plain', formula: 'plain' },

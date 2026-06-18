@@ -542,6 +542,19 @@ export const useReportStore = defineStore('report', () => {
     touchActive()
   }
 
+  // Add a new item right after the given one, at the same nesting level.
+  function addSiblingListItem(blockId: string, itemId: string) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const block = doc.blocks.find(b => b.id === blockId)
+    if (!block || block.type !== 'list') return
+    const found = findListItem(block.items, itemId)
+    if (!found) return
+    const idx = found.siblings.findIndex(i => i.id === itemId)
+    found.siblings.splice(idx + 1, 0, { id: generateId(), text: '' })
+    touchActive()
+  }
+
   function removeListItem(blockId: string, itemId: string) {
     const doc = activeDocument.value
     if (!doc) return
@@ -792,13 +805,9 @@ export const useReportStore = defineStore('report', () => {
 
   // --- Title template (per-document blocks) ---
 
-  function addTitleBlock(type: TitleBlock['type'], afterId?: string) {
+  function insertTitleBlock(newBlock: TitleBlock, afterId?: string) {
     const doc = activeDocument.value
     if (!doc) return
-    const newBlock: TitleBlock = type === 'titleSpacer'
-      ? { id: generateId(), type: 'titleSpacer', lines: 1 }
-      : { id: generateId(), type: 'titleLine', text: 'Новий рядок', align: 'center', bold: false, spaceBefore: false, paddingLeft: 0, paddingRight: 0 }
-
     if (afterId) {
       const idx = doc.titleTemplate.findIndex(b => b.id === afterId)
       if (idx !== -1) {
@@ -808,6 +817,43 @@ export const useReportStore = defineStore('report', () => {
       }
     }
     doc.titleTemplate.push(newBlock)
+    touchActive()
+  }
+
+  function addTitleBlock(type: TitleBlock['type'], afterId?: string) {
+    const newBlock: TitleBlock = type === 'titleSpacer'
+      ? { id: generateId(), type: 'titleSpacer', lines: 1 }
+      : { id: generateId(), type: 'titleLine', text: 'Новий рядок', align: 'center', bold: false, spaceBefore: false, paddingLeft: 0, paddingRight: 0 }
+    insertTitleBlock(newBlock, afterId)
+  }
+
+  // Add a regular body block (paragraph/heading/image/table/formula/list) into
+  // the title layout, wrapped in a titleContent block.
+  function addTitleContentBlock(blockType: ReportBlock['type'], afterId?: string) {
+    let inner: ReportBlock
+    if (blockType === 'heading') inner = { id: generateId(), type: 'heading', text: '', level: 1 }
+    else if (blockType === 'image') inner = { id: generateId(), type: 'image', src: '', caption: '', referenceText: '' }
+    else if (blockType === 'table') inner = { id: generateId(), type: 'table', caption: '', headers: ['Стовпець 1', 'Стовпець 2'], rows: [{ id: generateId(), cells: [{ text: '' }, { text: '' }] }], referenceText: '' }
+    else if (blockType === 'formula') inner = { id: generateId(), type: 'formula', latex: '', caption: '', referenceText: '', numbered: false }
+    else if (blockType === 'list') inner = { id: generateId(), type: 'list', ordered: false, items: [{ id: generateId(), text: '' }], introText: '' }
+    else if (blockType === 'columns') inner = {
+      id: generateId(), type: 'columns',
+      columns: [
+        { id: generateId(), width: 50, blocks: [{ id: generateId(), type: 'paragraph', text: '' }] },
+        { id: generateId(), width: 50, blocks: [{ id: generateId(), type: 'paragraph', text: '' }] },
+      ],
+    }
+    else inner = { id: generateId(), type: 'paragraph', text: '' }
+    insertTitleBlock({ id: generateId(), type: 'titleContent', block: inner }, afterId)
+  }
+
+  // Update the inner block of a titleContent wrapper.
+  function updateTitleContentBlock(titleBlockId: string, data: Partial<ReportBlock>) {
+    const doc = activeDocument.value
+    if (!doc) return
+    const tb = doc.titleTemplate.find(b => b.id === titleBlockId)
+    if (!tb || tb.type !== 'titleContent') return
+    tb.block = { ...tb.block, ...data } as ReportBlock
     touchActive()
   }
 
@@ -909,6 +955,42 @@ export const useReportStore = defineStore('report', () => {
     if (tpl) tpl.name = name
   }
 
+  // --- Template export / import ---
+
+  // Bundle all layout + data templates into one JSON string.
+  function exportTemplates(): string {
+    return JSON.stringify({
+      kind: 'dstu-templates',
+      version: 1,
+      layoutTemplates: titleTemplates.value,
+      dataTemplates: titleDataTemplates.value,
+    }, null, 2)
+  }
+
+  // Import a bundle (merge=append with fresh ids; replace=overwrite). Returns
+  // the number of layout + data templates added, or null on parse error.
+  function importTemplates(json: string, mode: 'merge' | 'replace' = 'merge'): { layout: number; data: number } | null {
+    try {
+      const parsed = JSON.parse(json) as {
+        kind?: string
+        layoutTemplates?: TitlePageTemplate[]
+        dataTemplates?: TitleDataTemplate[]
+      }
+      const layout = (parsed.layoutTemplates ?? []).map(t => ({ ...t, id: generateId() }))
+      const data = (parsed.dataTemplates ?? []).map(t => ({ ...t, id: generateId() }))
+      if (mode === 'replace') {
+        titleTemplates.value = layout
+        titleDataTemplates.value = data
+      } else {
+        titleTemplates.value = [...titleTemplates.value, ...layout]
+        titleDataTemplates.value = [...titleDataTemplates.value, ...data]
+      }
+      return { layout: layout.length, data: data.length }
+    } catch {
+      return null
+    }
+  }
+
   return {
     documents,
     activeDocumentId,
@@ -940,6 +1022,7 @@ export const useReportStore = defineStore('report', () => {
     updateBlock,
     addListItem,
     addSubListItem,
+    addSiblingListItem,
     removeListItem,
     updateListItem,
     addTableRow,
@@ -953,6 +1036,8 @@ export const useReportStore = defineStore('report', () => {
     importMarkdownTable,
     getBlockIndex,
     addTitleBlock,
+    addTitleContentBlock,
+    updateTitleContentBlock,
     removeTitleBlock,
     moveTitleBlock,
     updateTitleBlock,
@@ -966,5 +1051,7 @@ export const useReportStore = defineStore('report', () => {
     applyDataTemplate,
     deleteDataTemplate,
     renameDataTemplate,
+    exportTemplates,
+    importTemplates,
   }
 })
