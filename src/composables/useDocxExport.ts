@@ -606,7 +606,8 @@ function buildBlock(
         children: [baseRun(`${i + 1}. ${text}`, srcCfg, entryBold)],
         alignment: entryAlign,
         spacing: { line: Math.round(srcCfg.lineSpacing * 240), lineRule: 'auto' as never },
-        indent: { left: cmToTwip(0.75), hanging: cmToTwip(0.75) },
+        // First line (with the number) at the paragraph indent; wrapped lines at 0.
+        indent: { left: 0, firstLine: cmToTwip(cfg.paragraphIndent) },
       }))
     })
     return result
@@ -665,23 +666,39 @@ function buildBlock(
   if (block.type === 'list') {
     const result: Paragraph[] = []
 
+    // Per-block formatting overrides (apply to the intro line and every item).
+    const lCfg = { ...cfg }
+    if (block.fontSize) lCfg.size = ptToHalfPt(block.fontSize)
+    if (block.fontFamily) lCfg.name = block.fontFamily
+    if (block.lineSpacing !== undefined) lCfg.lineSpacing = block.lineSpacing
+    if (block.color) lCfg.color = block.color
+    const lAlign = ALIGN4_MAP[block.align ?? 'justify'] ?? AlignmentType.JUSTIFIED
+    const lBold = block.bold ?? false
+    // Custom bullet for unordered lists (top level); nested levels use a hollow
+    // bullet to keep the hierarchy readable.
+    const bullet = (block.bulletChar && block.bulletChar.trim()) || '•'
+
     if (block.introText) {
-      result.push(bodyParagraph(inlineRuns(block.introText, cfg), cfg))
+      result.push(bodyParagraph(inlineRuns(block.introText, lCfg, lBold), lCfg))
     }
 
     // Render items recursively; sub-lists are indented one level deeper.
-    // The text is emitted exactly as typed — only the marker (N. / –) is added.
+    // The text is emitted exactly as typed — only the marker (N. / bullet) is added.
     const renderItems = (items: ListItem[], ordered: boolean, level: number) => {
       items.forEach((item, idx) => {
         const text = item.text.trim()
-        const baseIndent = cmToTwip(cfg.paragraphIndent) + cmToTwip(0.75 * level)
+        // The item's first line (with the marker) starts at the paragraph indent
+        // (1.25 cm for the top level); wrapped lines fall back to 0 (left edge).
+        // Nested levels add 0.75 cm of left indent per level for the whole block.
+        const levelIndent = cmToTwip(0.75 * level)
+        const firstLineIndent = cmToTwip(cfg.paragraphIndent)
         if (text) {
-          const marker = ordered ? `${idx + 1}. ` : '– '
+          const marker = ordered ? `${idx + 1}. ` : `${level === 0 ? bullet : '◦'} `
           result.push(new Paragraph({
-            children: inlineRuns(`${marker}${text}`, cfg),
-            alignment: AlignmentType.JUSTIFIED,
-            spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
-            indent: { left: baseIndent, hanging: cmToTwip(0.5) },
+            children: inlineRuns(`${marker}${text}`, lCfg, lBold),
+            alignment: lAlign,
+            spacing: { line: Math.round(lCfg.lineSpacing * 240), lineRule: 'auto' as never },
+            indent: { left: levelIndent, firstLine: firstLineIndent },
           }))
         }
         // Sub-list (always bullet style for readability).
@@ -714,7 +731,13 @@ function buildBlock(
     result.push(captionParagraph(`${s.listingPrefix} ${num} – ${block.caption}`, cfg))
     result.push(
       new Paragraph({
-        children: [new TextRun({ text: block.code, font: 'Courier New', size: codeSize })],
+        children: [new TextRun({
+          text: block.code,
+          font: block.fontFamily || 'Courier New',
+          size: codeSize,
+          bold: block.bold,
+          color: block.color,
+        })],
         spacing: { line: Math.round(codeSpacing * 240), lineRule: 'auto' as never },
       })
     )
@@ -758,11 +781,17 @@ function buildBlock(
       }
     }
 
+    // Caption formatting overrides.
+    const capCfg = { ...cfg }
+    if (block.fontSize) capCfg.size = ptToHalfPt(block.fontSize)
+    if (block.fontFamily) capCfg.name = block.fontFamily
+    if (block.lineSpacing !== undefined) capCfg.lineSpacing = block.lineSpacing
+    if (block.color) capCfg.color = block.color
     result.push(
       new Paragraph({
-        children: inlineRuns(`${s.imagePrefix} ${num} – ${block.caption}`, cfg),
-        alignment: AlignmentType.CENTER,
-        spacing: { line: Math.round(cfg.lineSpacing * 240), lineRule: 'auto' as never },
+        children: inlineRuns(`${s.imagePrefix} ${num} – ${block.caption}`, capCfg, block.bold ?? false),
+        alignment: ALIGN4_MAP[block.align ?? 'center'] ?? AlignmentType.CENTER,
+        spacing: { line: Math.round(capCfg.lineSpacing * 240), lineRule: 'auto' as never },
       })
     )
     if (!block.noTrailingSpace) result.push(emptyParagraph(cfg))
@@ -776,6 +805,10 @@ function buildBlock(
     const tblSize = ptToHalfPt(block.fontSize ?? 12)
     const tblSpacing = block.lineSpacing ?? 1.0
     const tCfg = { ...cfg, size: tblSize, lineSpacing: tblSpacing }
+    if (block.fontFamily) tCfg.name = block.fontFamily
+    if (block.color) tCfg.color = block.color
+    const cellBold = block.bold ?? false
+    const cellAlign = ALIGN4_MAP[block.align ?? 'left'] ?? AlignmentType.LEFT
     const ROWS_PER_PAGE = 20 // split threshold
 
     const refText = block.referenceText
@@ -831,7 +864,7 @@ function buildBlock(
     const makeDataRow = (row: DocTableRow) => new TableRow({
       children: row.cells.map((cell, i) =>
         new TableCell({
-          children: [new Paragraph({ children: inlineRuns(cell.text, tCfg), spacing: { line: Math.round(tblSpacing * 240), lineRule: 'auto' as never } })],
+          children: [new Paragraph({ children: inlineRuns(cell.text, tCfg, cellBold), alignment: cellAlign, spacing: { line: Math.round(tblSpacing * 240), lineRule: 'auto' as never } })],
           borders: makeBorder(),
           width: cellWidth(i),
         })

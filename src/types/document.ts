@@ -130,6 +130,14 @@ export interface ListBlock {
   ordered: boolean
   items: ListItem[]
   introText?: string
+  bulletChar?: string  // marker for unordered lists (default "•")
+  // Formatting — applies to every list item (and the intro line).
+  bold?: boolean
+  align?: 'left' | 'center' | 'right' | 'justify'
+  fontSize?: number    // pt
+  fontFamily?: string
+  lineSpacing?: number
+  color?: string       // hex without '#'
 }
 
 export interface CodeBlock {
@@ -142,6 +150,9 @@ export interface CodeBlock {
   inlineReference?: boolean // append referenceText to the previous paragraph instead of a new line
   fontSize?: number     // default 12
   lineSpacing?: number  // default 1.0
+  fontFamily?: string   // code font, default "Courier New"
+  bold?: boolean
+  color?: string        // hex without '#'
   noTrailingSpace?: boolean // omit the empty line after the block
 }
 
@@ -155,6 +166,13 @@ export interface ImageBlock {
   noTrailingSpace?: boolean
   width?: number   // px (display width); height scales proportionally if height unset
   height?: number  // px
+  // Caption formatting.
+  bold?: boolean
+  align?: 'left' | 'center' | 'right' | 'justify'
+  fontSize?: number    // pt
+  fontFamily?: string
+  lineSpacing?: number
+  color?: string       // hex without '#'
 }
 
 export interface TableCell {
@@ -180,6 +198,10 @@ export interface TableBlock {
   inlineReference?: boolean
   fontSize?: number     // default 12
   lineSpacing?: number  // default 1.0
+  fontFamily?: string   // cell font
+  bold?: boolean        // bold for data cells (headers are always bold)
+  align?: 'left' | 'center' | 'right' | 'justify' // data-cell text alignment
+  color?: string        // hex without '#'
   fullWidth?: boolean       // stretch table to the full content width (default true)
   columnWidths?: number[]   // relative width per column in % (must sum ~100); empty = auto/equal
   noTrailingSpace?: boolean // omit the empty line after the block

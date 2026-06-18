@@ -2,6 +2,7 @@
 import type { ImageBlock } from '../../types/document'
 import { ref } from 'vue'
 import MarkerHint from './MarkerHint.vue'
+import BlockStyleRow from './BlockStyleRow.vue'
 
 const props = defineProps<{ block: ImageBlock; index: number }>()
 const emit = defineEmits<{
@@ -111,5 +112,8 @@ function onFileChange(e: Event) {
         @change="emit('update', { noTrailingSpace: ($event.target as HTMLInputElement).checked })" />
       <span>Без порожнього рядка знизу</span>
     </label>
+
+    <p class="block-hint">Форматування підпису:</p>
+    <BlockStyleRow :block="props.block" default-align="center" @update="emit('update', $event)" />
   </div>
 </template>

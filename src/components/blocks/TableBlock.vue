@@ -124,6 +124,15 @@ function openMdWithCurrent() {
     </div>
 
     <div class="block-style-row">
+      <select class="style-select"
+        :value="props.block.fontFamily ?? 'Times New Roman'"
+        @change="emit('update', { fontFamily: ($event.target as HTMLSelectElement).value || undefined })"
+        title="Шрифт">
+        <option value="Times New Roman">Times New Roman</option>
+        <option value="Arial">Arial</option>
+        <option value="Calibri">Calibri</option>
+        <option value="Courier New">Courier New</option>
+      </select>
       <span class="style-label">Розмір:</span>
       <input type="number" min="8" max="24" step="1" class="style-number"
         :value="props.block.fontSize ?? 12"
@@ -136,6 +145,22 @@ function openMdWithCurrent() {
         :value="props.block.lineSpacing ?? 1.0"
         @input="emit('update', { lineSpacing: parseFloat(($event.target as HTMLInputElement).value) || 1.0 })"
         title="Міжрядковий інтервал"
+      />
+      <button :class="['style-btn', { active: props.block.bold }]"
+        @click="emit('update', { bold: !props.block.bold })" title="Жирний (комірки даних)"><b>B</b></button>
+      <select class="style-select"
+        :value="props.block.align ?? 'left'"
+        @change="emit('update', { align: ($event.target as HTMLSelectElement).value as 'left'|'center'|'right'|'justify' })"
+        title="Вирівнювання комірок даних">
+        <option value="left">⇤ зліва</option>
+        <option value="center">⇔ центр</option>
+        <option value="right">⇥ справа</option>
+        <option value="justify">≡ по ширині</option>
+      </select>
+      <input type="color" class="style-color"
+        :value="'#' + (props.block.color ?? '000000')"
+        @input="emit('update', { color: ($event.target as HTMLInputElement).value.replace('#','').toUpperCase() })"
+        title="Колір тексту"
       />
     </div>
 

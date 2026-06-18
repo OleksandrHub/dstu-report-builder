@@ -3,6 +3,9 @@ import type { ListBlock } from '../../types/document'
 import { useReportStore } from '../../stores/report'
 import MarkerHint from './MarkerHint.vue'
 import ListItemRow from './ListItemRow.vue'
+import BlockStyleRow from './BlockStyleRow.vue'
+
+const BULLET_PRESETS = ['•', '◦', '▪', '–', '—', '*', '·', '‣', '●', '○']
 
 const props = defineProps<{ block: ListBlock }>()
 const emit = defineEmits<{
@@ -38,6 +41,28 @@ const store = useReportStore()
       </div>
     </div>
 
+    <BlockStyleRow :block="props.block" default-align="justify" @update="emit('update', $event)" />
+
+    <div v-if="!props.block.ordered" class="block-field-row">
+      <label>Маркер:</label>
+      <input
+        class="block-input bullet-input"
+        :value="props.block.bulletChar ?? '•'"
+        maxlength="3"
+        @input="emit('update', { bulletChar: ($event.target as HTMLInputElement).value })"
+        placeholder="•"
+      />
+      <div class="bullet-presets">
+        <button
+          v-for="b in BULLET_PRESETS"
+          :key="b"
+          type="button"
+          :class="['bullet-preset', { active: (props.block.bulletChar ?? '•') === b }]"
+          @click="emit('update', { bulletChar: b })"
+        >{{ b }}</button>
+      </div>
+    </div>
+
     <input
       class="block-input"
       :value="props.block.introText"
@@ -52,6 +77,7 @@ const store = useReportStore()
         :block-id="props.block.id"
         :item="item"
         :depth="0"
+        :bullet="props.block.ordered ? undefined : (props.block.bulletChar ?? '•')"
       />
     </div>
 
@@ -62,3 +88,29 @@ const store = useReportStore()
     <MarkerHint />
   </div>
 </template>
+
+<style scoped>
+.bullet-input {
+  max-width: 56px;
+  text-align: center;
+}
+.bullet-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.bullet-preset {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border, #ccc);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+.bullet-preset.active {
+  border-color: var(--accent, #4a90d9);
+  background: var(--accent-soft, #e8f1fb);
+}
+</style>

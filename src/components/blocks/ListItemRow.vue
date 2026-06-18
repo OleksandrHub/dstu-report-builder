@@ -3,14 +3,14 @@ import type { ListItem } from '../../types/document'
 import { useReportStore } from '../../stores/report'
 
 // Recursive editor for one list item and its nested sub-items.
-const props = defineProps<{ blockId: string; item: ListItem; depth: number }>()
+const props = defineProps<{ blockId: string; item: ListItem; depth: number; bullet?: string }>()
 const store = useReportStore()
 </script>
 
 <template>
   <div class="list-item-tree" :style="{ marginLeft: props.depth ? '16px' : '0' }">
     <div class="list-item-row">
-      <span class="list-marker">{{ props.depth ? '◦' : '–' }}</span>
+      <span class="list-marker">{{ props.depth ? '◦' : (props.bullet || '•') }}</span>
       <input
         class="block-input list-item-input"
         :value="props.item.text"
