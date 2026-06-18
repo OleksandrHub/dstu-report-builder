@@ -13,7 +13,7 @@ import {
   ImageRun,
   Header,
   Footer,
-  PageNumber,
+  SimpleField,
   SectionType,
   convertInchesToTwip,
   convertMillimetersToTwip,
@@ -429,10 +429,13 @@ const HF_ALIGN_MAP: Record<string, typeof AlignmentType[keyof typeof AlignmentTy
 }
 
 // Build the runs for a header/footer paragraph based on its mode.
-function hfRuns(hf: HeaderFooterConfig): (TextRun)[] {
+// The PAGE field is emitted as a SimpleField WITH a cached value (the page on
+// which this header/footer first appears) so viewers that don't recompute fields
+// (e.g. SuperDoc preview) still display the right number.
+function hfRuns(hf: HeaderFooterConfig, cachedPage: number): (TextRun | SimpleField)[] {
   const size = ptToHalfPt(hf.fontSize)
   const font = hf.fontFamily
-  const runs: TextRun[] = []
+  const runs: (TextRun | SimpleField)[] = []
   const hasText = hf.mode === 'text' || hf.mode === 'textAndPage'
   const hasPage = hf.mode === 'pageNumber' || hf.mode === 'textAndPage'
 
@@ -443,23 +446,23 @@ function hfRuns(hf: HeaderFooterConfig): (TextRun)[] {
     runs.push(new TextRun({ text: ' ', font, size }))
   }
   if (hasPage) {
-    runs.push(new TextRun({ children: [PageNumber.CURRENT], font, size }))
+    runs.push(new SimpleField('PAGE', String(cachedPage)))
   }
   return runs
 }
 
-function buildHeader(hf: HeaderFooterConfig): Header | undefined {
+function buildHeader(hf: HeaderFooterConfig, cachedPage: number): Header | undefined {
   if (hf.mode === 'none') return undefined
-  const runs = hfRuns(hf)
+  const runs = hfRuns(hf, cachedPage)
   if (runs.length === 0) return undefined
   return new Header({
     children: [new Paragraph({ children: runs, alignment: HF_ALIGN_MAP[hf.align] ?? AlignmentType.RIGHT })],
   })
 }
 
-function buildFooter(hf: HeaderFooterConfig): Footer | undefined {
+function buildFooter(hf: HeaderFooterConfig, cachedPage: number): Footer | undefined {
   if (hf.mode === 'none') return undefined
-  const runs = hfRuns(hf)
+  const runs = hfRuns(hf, cachedPage)
   if (runs.length === 0) return undefined
   return new Footer({
     children: [new Paragraph({ children: runs, alignment: HF_ALIGN_MAP[hf.align] ?? AlignmentType.CENTER })],
@@ -499,8 +502,14 @@ async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
     bodyChildren.push(...elements)
   }
 
-  const header = buildHeader(s.header)
-  const footer = buildFooter(s.footer)
+  const startPage = s.pageNumberStart ?? 1
+  // Title page shows startPage; the first body page is the next one (continuous).
+  const bodyFirstPage = startPage + 1
+  // Each section's PAGE field caches the number of the page it first appears on.
+  const titleHeader = buildHeader(s.header, startPage)
+  const titleFooter = buildFooter(s.footer, startPage)
+  const bodyHeader = buildHeader(s.header, bodyFirstPage)
+  const bodyFooter = buildFooter(s.footer, bodyFirstPage)
 
   const pageMargin = {
     left: cmToTwip(s.marginLeft),
@@ -525,23 +534,28 @@ async function buildDocxBlob(doc: ReportDocument): Promise<Blob> {
     sections: [
       {
         properties: {
-          page: { margin: pageMargin },
+          page: {
+            margin: pageMargin,
+            // First page of the document carries the configured start number.
+            pageNumbers: { start: startPage },
+          },
         },
         // The title section has no header/footer when differentFirstPage is on.
-        headers: header && !s.differentFirstPage ? { default: header } : undefined,
-        footers: footer && !s.differentFirstPage ? { default: footer } : undefined,
+        headers: titleHeader && !s.differentFirstPage ? { default: titleHeader } : undefined,
+        footers: titleFooter && !s.differentFirstPage ? { default: titleFooter } : undefined,
         children: [...titleChildren],
       },
       {
         properties: {
           type: SectionType.NEXT_PAGE,
           page: {
+            // No pageNumbers.start here: numbering flows continuously from the
+            // title page, so the first body page is startPage + 1.
             margin: pageMargin,
-            pageNumbers: { start: 1 },
           },
         },
-        headers: header ? { default: header } : undefined,
-        footers: footer ? { default: footer } : undefined,
+        headers: bodyHeader ? { default: bodyHeader } : undefined,
+        footers: bodyFooter ? { default: bodyFooter } : undefined,
         children: [...bodyChildren],
       },
     ],

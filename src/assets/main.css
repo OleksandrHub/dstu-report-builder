@@ -581,6 +581,11 @@ body {
 }
 
 /* SuperDoc preview container */
+.superdoc {
+  display: flex;
+  justify-content: center;       /* Center pages horizontally */
+}
+
 .superdoc-scroll {
   align-items: stretch;          /* SuperDoc manages its own centering */
   padding: 0;

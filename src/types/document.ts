@@ -24,6 +24,7 @@ export interface DocumentSettings {
   header: HeaderFooterConfig
   footer: HeaderFooterConfig
   differentFirstPage: boolean // title page gets a separate (empty) header/footer
+  pageNumberStart: number // number assigned to the very first (title) page
 }
 
 export interface TitlePageData {
@@ -206,6 +207,7 @@ export const DEFAULT_SETTINGS: DocumentSettings = {
   header: { mode: 'none', text: '', align: 'right', fontSize: 12, fontFamily: 'Times New Roman' },
   footer: { mode: 'pageNumber', text: '', align: 'center', fontSize: 12, fontFamily: 'Times New Roman' },
   differentFirstPage: true,
+  pageNumberStart: 1,
 }
 
 export const DEFAULT_TITLE_PAGE: TitlePageData = {

@@ -116,10 +116,13 @@ export const useReportStore = defineStore('report', () => {
       doc.settings.header = { mode: 'none', text: '', align: 'right', fontSize: 12, fontFamily: doc.settings.fontFamily || 'Times New Roman' }
     }
     if (doc.settings && !doc.settings.footer) {
-      doc.settings.footer = { mode: 'pageNumber', text: '', align: 'center', fontSize: 12, fontFamily: doc.settings.fontFamily || 'Times New Roman' }
+      doc.settings.footer = { mode: 'pageNumber', text: '', align: 'right', fontSize: 12, fontFamily: doc.settings.fontFamily || 'Times New Roman' }
     }
     if (doc.settings && doc.settings.differentFirstPage === undefined) {
       doc.settings.differentFirstPage = true
+    }
+    if (doc.settings && doc.settings.pageNumberStart === undefined) {
+      doc.settings.pageNumberStart = 1
     }
   }
 

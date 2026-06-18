@@ -122,6 +122,19 @@ const hfModes = [
       <span>Інша перша сторінка (титулка без колонтитула)</span>
     </label>
 
+    <div class="field-group">
+      <label>Початковий номер сторінки</label>
+      <input
+        class="field-input"
+        style="width: 80px"
+        type="number"
+        min="0"
+        step="1"
+        :value="s.pageNumberStart"
+        @input="store.updateSettings({ pageNumberStart: parseInt(($event.target as HTMLInputElement).value) || 1 })"
+      />
+    </div>
+
     <h4 class="subsection-title">Верхній колонтитул</h4>
     <div class="field-group">
       <label>Вміст</label>
