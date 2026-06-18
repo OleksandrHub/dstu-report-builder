@@ -114,6 +114,6 @@ function onFileChange(e: Event) {
     </label>
 
     <p class="block-hint">Форматування підпису:</p>
-    <BlockStyleRow :block="props.block" default-align="center" @update="emit('update', $event)" />
+    <BlockStyleRow :block="props.block" default-align="center" :show-indent="false" @update="emit('update', $event)" />
   </div>
 </template>

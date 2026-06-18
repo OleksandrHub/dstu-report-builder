@@ -4,6 +4,7 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import type { FormulaBlock } from '../../types/document'
 import MarkerHint from './MarkerHint.vue'
+import BlockStyleRow from './BlockStyleRow.vue'
 
 const props = defineProps<{ block: FormulaBlock; index: number }>()
 const emit = defineEmits<{
@@ -114,5 +115,8 @@ watch(() => props.block.latex, renderPreview)
     </template>
 
     <MarkerHint />
+
+    <p class="block-hint">Форматування підпису / посилання:</p>
+    <BlockStyleRow :block="props.block" default-align="left" :show-indent="false" @update="emit('update', $event)" />
   </div>
 </template>

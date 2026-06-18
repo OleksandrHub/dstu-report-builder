@@ -41,9 +41,9 @@ const store = useReportStore()
       </div>
     </div>
 
-    <BlockStyleRow :block="props.block" default-align="justify" @update="emit('update', $event)" />
+    <BlockStyleRow :block="props.block" default-align="justify" :show-indent="false" @update="emit('update', $event)" />
 
-    <div v-if="!props.block.ordered" class="block-field-row">
+    <div v-if="!props.block.ordered" class="block-field-row bullet-field">
       <label>Маркер:</label>
       <input
         class="block-input bullet-input"
@@ -90,9 +90,19 @@ const store = useReportStore()
 </template>
 
 <style scoped>
+.bullet-field {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
 .bullet-input {
-  max-width: 56px;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 36px;
   text-align: center;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
 }
 .bullet-presets {
   display: flex;
@@ -100,14 +110,20 @@ const store = useReportStore()
   gap: 4px;
 }
 .bullet-preset {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--border, #ccc);
   border-radius: 4px;
   background: var(--surface, #fff);
   cursor: pointer;
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1;
+}
+.bullet-preset:hover {
+  border-color: var(--accent, #4a90d9);
 }
 .bullet-preset.active {
   border-color: var(--accent, #4a90d9);

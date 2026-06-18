@@ -8,7 +8,6 @@ import type {
   ListItem,
   TableRow,
   TitleBlock,
-  TitleSpacerBlock,
   TitlePageTemplate,
   TitleDataTemplate,
   SourceEntry,
@@ -16,166 +15,25 @@ import type {
   ColumnsBlock,
 } from '../types/document'
 import {
-  DEFAULT_SETTINGS,
-  DEFAULT_TITLE_PAGE,
   DEFAULT_TITLE_TEMPLATE,
-  TITLE_TEMPLATES_STORAGE_KEY,
-  TITLE_DATA_TEMPLATES_KEY,
   parseMarkdownTable,
 } from '../types/document'
-
-const STORAGE_KEY = 'dstu-report-builder-documents'
-const ACTIVE_DOC_KEY = 'dstu-report-builder-active'
-
-function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2)
-}
-
-function emptySourceEntry(): SourceEntry {
-  return {
-    id: generateId(),
-    type: 'book',
-    authors: '', title: '', city: '', publisher: '', year: '',
-    pages: '', journal: '', url: '', accessDate: '',
-  }
-}
-
-function deepCloneTitleBlocks(blocks: TitleBlock[]): TitleBlock[] {
-  return JSON.parse(JSON.stringify(blocks)) as TitleBlock[]
-}
-
-function createDocument(name: string): ReportDocument {
-  return {
-    id: generateId(),
-    name,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    titlePage: { ...DEFAULT_TITLE_PAGE, year: new Date().getFullYear().toString() },
-    titleTemplate: deepCloneTitleBlocks(DEFAULT_TITLE_TEMPLATE),
-    settings: { ...DEFAULT_SETTINGS },
-    blocks: [],
-  }
-}
-
-function loadTemplatesFromStorage(): TitlePageTemplate[] {
-  try {
-    const raw = localStorage.getItem(TITLE_TEMPLATES_STORAGE_KEY)
-    if (!raw) return []
-    return JSON.parse(raw) as TitlePageTemplate[]
-  } catch {
-    return []
-  }
-}
-
-function saveTemplatesToStorage(templates: TitlePageTemplate[]) {
-  localStorage.setItem(TITLE_TEMPLATES_STORAGE_KEY, JSON.stringify(templates))
-}
-
-function loadDataTemplatesFromStorage(): TitleDataTemplate[] {
-  try {
-    const raw = localStorage.getItem(TITLE_DATA_TEMPLATES_KEY)
-    return raw ? (JSON.parse(raw) as TitleDataTemplate[]) : []
-  } catch {
-    return []
-  }
-}
-
-function saveDataTemplatesToStorage(templates: TitleDataTemplate[]) {
-  localStorage.setItem(TITLE_DATA_TEMPLATES_KEY, JSON.stringify(templates))
-}
-
-function loadFromStorage(): ReportDocument[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    return JSON.parse(raw) as ReportDocument[]
-  } catch {
-    return []
-  }
-}
-
-function saveToStorage(docs: ReportDocument[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(docs))
-}
+import { generateId, emptySourceEntry, deepCloneTitleBlocks, createDocument } from './factories'
+import {
+  ACTIVE_DOC_KEY,
+  loadTemplatesFromStorage,
+  saveTemplatesToStorage,
+  loadDataTemplatesFromStorage,
+  saveDataTemplatesToStorage,
+  loadFromStorage,
+  saveToStorage,
+} from './storage'
+import { migrateDocuments } from './migrations'
+import { cloneBlockWithNewIds, findListItem } from './block-utils'
 
 export const useReportStore = defineStore('report', () => {
   const rawDocs = loadFromStorage()
-  // Migrate: add titleTemplate to old documents that don't have it
-  for (const doc of rawDocs) {
-    if (!doc.titleTemplate) {
-      doc.titleTemplate = deepCloneTitleBlocks(DEFAULT_TITLE_TEMPLATE)
-    } else {
-      for (const block of doc.titleTemplate) {
-        if (block.type === 'titleLine') {
-          if (block.paddingLeft === undefined) block.paddingLeft = 0
-          if (block.paddingRight === undefined) block.paddingRight = 0
-        }
-        if (block.type === 'titleSpacer') {
-          const b = block as TitleSpacerBlock & { flex?: number; heightCm?: number }
-          if (b.lines === undefined) {
-            // migrate old flex or heightCm → lines (1 line ≈ 0.74cm at 14pt×1.5)
-            b.lines = b.flex ?? (Math.round((b.heightCm ?? 2) / 0.74) || 1)
-          }
-          delete b.flex
-          delete b.heightCm
-        }
-      }
-    }
-  }
-
-  // Migrate: add header/footer settings to old documents
-  for (const doc of rawDocs) {
-    if (doc.settings && !doc.settings.header) {
-      doc.settings.header = { mode: 'none', text: '', align: 'right', fontSize: 12, fontFamily: doc.settings.fontFamily || 'Times New Roman' }
-    }
-    if (doc.settings && !doc.settings.footer) {
-      doc.settings.footer = { mode: 'pageNumber', text: '', align: 'right', fontSize: 12, fontFamily: doc.settings.fontFamily || 'Times New Roman' }
-    }
-    if (doc.settings && doc.settings.differentFirstPage === undefined) {
-      doc.settings.differentFirstPage = true
-    }
-    if (doc.settings && doc.settings.pageNumberStart === undefined) {
-      doc.settings.pageNumberStart = 1
-    }
-    if (doc.settings && !doc.settings.numbering) {
-      // migrate old single numberingScheme → per-type, default 'plain'
-      const old = (doc.settings as { numberingScheme?: 'plain' | 'perSection' | 'sectioned' }).numberingScheme ?? 'plain'
-      doc.settings.numbering = { image: old, table: old, code: old, formula: old }
-    }
-    if (doc.settings && doc.settings.formulaPrefix === undefined) {
-      doc.settings.formulaPrefix = 'Формула'
-    }
-  }
-
-  // Migrate: append {no} placeholder to legacy referenceText (so number isn't auto-doubled)
-  for (const doc of rawDocs) {
-    if (!doc.blocks) continue
-    for (const b of doc.blocks) {
-      if ((b.type === 'code' || b.type === 'image' || b.type === 'table') && b.referenceText && !b.referenceText.includes('{no}')) {
-        const t = b.referenceText.trim()
-        if (b.type === 'table') {
-          // old table format auto-wrapped "У таблиці N <text>." — convert to explicit sentence
-          b.referenceText = `У таблиці {no} ${t.toLowerCase()}.`
-        } else {
-          b.referenceText = `${t.replace(/\.$/, '')} {no}.`
-        }
-      }
-    }
-  }
-
-  // Migrate: convert old intro field into paragraph blocks prepended to blocks[]
-  for (const doc of rawDocs) {
-    const d = doc as ReportDocument & { intro?: { topic?: string; goal?: string; variant?: string } }
-    if (d.intro) {
-      const introBlocks: ReportBlock[] = []
-      if (d.intro.topic) introBlocks.push({ id: generateId(), type: 'paragraph', text: `Тема: ${d.intro.topic}.` })
-      if (d.intro.goal) introBlocks.push({ id: generateId(), type: 'paragraph', text: `Мета: ${d.intro.goal}.` })
-      if (d.intro.variant) introBlocks.push({ id: generateId(), type: 'paragraph', text: `Варіант №${d.intro.variant}` })
-      introBlocks.push({ id: generateId(), type: 'paragraph', text: 'Виконання роботи:' })
-      doc.blocks = [...introBlocks, ...doc.blocks]
-      delete d.intro
-    }
-  }
+  migrateDocuments(rawDocs)
 
   const documents = ref<ReportDocument[]>(rawDocs)
   const activeDocumentId = ref<string | null>(localStorage.getItem(ACTIVE_DOC_KEY))
@@ -475,19 +333,6 @@ export const useReportStore = defineStore('report', () => {
     touchActive()
   }
 
-  // Deep-clone a block and assign fresh ids to it and every nested entity.
-  function cloneBlockWithNewIds(block: ReportBlock): ReportBlock {
-    const copy = JSON.parse(JSON.stringify(block)) as ReportBlock
-    const reid = (o: { id?: string }) => { if (o && typeof o === 'object' && 'id' in o) o.id = generateId() }
-    copy.id = generateId()
-    const reItems = (items?: ListItem[]) => items?.forEach(i => { reid(i); reItems(i.children) })
-    if (copy.type === 'list') reItems(copy.items)
-    else if (copy.type === 'table') copy.rows.forEach(reid)
-    else if (copy.type === 'sources') copy.entries.forEach(reid)
-    else if (copy.type === 'columns') copy.columns.forEach(c => { reid(c); c.blocks.forEach(reid) })
-    return copy
-  }
-
   function duplicateBlock(id: string) {
     const doc = activeDocument.value
     if (!doc) return
@@ -522,18 +367,6 @@ export const useReportStore = defineStore('report', () => {
   }
 
   // --- List helpers ---
-
-  // Find an item (and its sibling array) anywhere in a nested list tree.
-  function findListItem(items: ListItem[], itemId: string): { item: ListItem; siblings: ListItem[] } | null {
-    for (const i of items) {
-      if (i.id === itemId) return { item: i, siblings: items }
-      if (i.children) {
-        const found = findListItem(i.children, itemId)
-        if (found) return found
-      }
-    }
-    return null
-  }
 
   function addListItem(blockId: string) {
     const doc = activeDocument.value

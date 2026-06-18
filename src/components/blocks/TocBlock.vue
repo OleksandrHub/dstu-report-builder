@@ -32,7 +32,7 @@ const emit = defineEmits<{
         placeholder="Зміст"
       />
     </div>
-    <BlockStyleRow :block="props.block" default-align="center" @update="emit('update', $event)" />
+    <BlockStyleRow :block="props.block" default-align="center" :show-indent="false" @update="emit('update', $event)" />
     <p class="block-hint">
       Збирається автоматично із заголовків (H1–H3).
       Номери сторінок — це поля: <b>Word</b> оновлює сам при відкритті;

@@ -1,48 +1,55 @@
-# .
+# DSTU Report Builder
 
-This template should help get you started developing with Vue 3 in Vite.
+A Vue 3 web app for composing academic lab reports formatted to the Ukrainian
+**ДСТУ** standards and exporting them as real `.docx` files. Built for students at
+ТНТУ who want correct margins, fonts, numbering, a title page, and a
+ДСТУ 8302:2015 bibliography without doing it by hand in Word.
 
-## Recommended IDE Setup
+## Features
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+- **Block-based editor** — paragraphs, headings, lists, code listings, images,
+  tables, formulas (LaTeX), a table of contents, a bibliography, and multi-column
+  layouts. Every text block exposes font / size / line-spacing / bold / alignment
+  / colour overrides.
+- **Title page** — a configurable layout of lines, spacers, and embedded blocks
+  with `{{variable}}` substitution; reusable layout and data templates.
+- **Real `.docx` export** — proper A4 margins, page numbering, a Word TOC field,
+  and DSTU-compliant captions/numbering. Formulas render via KaTeX → PNG so they
+  display in Word, OnlyOffice, and the in-app preview.
+- **Live preview** — the generated `.docx` is rendered in-browser by SuperDoc.
+- **Local persistence** — all documents and templates are saved to `localStorage`;
+  old documents are migrated forward on load.
 
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+## Getting started
 
 ```sh
 npm install
+npm run dev          # dev server (http://localhost:5173)
+npm run build        # type-check + production build into dist/
+npm run preview      # serve the production build locally
+npm run lint         # oxlint + eslint
 ```
 
-### Compile and Hot-Reload for Development
+Requires Node `^22.18.0 || >=24.12.0`.
 
-```sh
-npm run dev
-```
+## Deployment
 
-### Type-Check, Compile and Minify for Production
+The app is a static SPA. The production `dist/` is deployed to Cloudflare Workers
+(`dstu-report-builder.sasha-klishch1.workers.dev`). Rebuild and redeploy after any
+change — the live site serves the last built bundle.
 
-```sh
-npm run build
-```
+## Architecture
 
-### Lint with [ESLint](https://eslint.org/)
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the module layout and the data model.
 
-```sh
-npm run lint
-```
+## Tech stack
+
+Vue 3 (`<script setup>`) · Pinia · Vue Router · [`docx`](https://docx.js.org) ·
+KaTeX · SuperDoc · Vite.
+
+## IDE setup
+
+[VS Code](https://code.visualstudio.com/) + the
+[Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar)
+extension (disable Vetur). Type checking uses `vue-tsc` instead of `tsc` so it
+understands `.vue` files.

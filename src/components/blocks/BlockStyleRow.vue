@@ -12,7 +12,10 @@ interface StyleProps {
 }
 
 const store = useReportStore()
-const props = defineProps<{ block: StyleProps; defaultAlign?: 'left' | 'center' | 'right' | 'justify' }>()
+const props = withDefaults(
+  defineProps<{ block: StyleProps; defaultAlign?: 'left' | 'center' | 'right' | 'justify'; showIndent?: boolean }>(),
+  { showIndent: true },
+)
 const emit = defineEmits<{ update: [data: Partial<StyleProps>] }>()
 
 const s = () => store.activeDocument?.settings
@@ -81,15 +84,17 @@ function setColor(hex: string) {
     />
     <span class="style-unit">інт</span>
 
-    <!-- First-line indent -->
-    <input
-      type="number" min="0" max="5" step="0.25"
-      class="style-number"
-      :value="indent()"
-      @input="emit('update', { indent: parseFloat(($event.target as HTMLInputElement).value) })"
-      title="Абзацний відступ (см)"
-    />
-    <span class="style-unit">см</span>
+    <!-- First-line indent (only for block types that support it) -->
+    <template v-if="props.showIndent">
+      <input
+        type="number" min="0" max="5" step="0.25"
+        class="style-number"
+        :value="indent()"
+        @input="emit('update', { indent: parseFloat(($event.target as HTMLInputElement).value) })"
+        title="Абзацний відступ (см)"
+      />
+      <span class="style-unit">см</span>
+    </template>
 
     <!-- Text color -->
     <input

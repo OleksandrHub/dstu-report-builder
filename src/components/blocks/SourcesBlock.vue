@@ -46,7 +46,7 @@ function upd(id: string, data: Partial<SourceEntry>) {
       />
     </div>
 
-    <BlockStyleRow :block="props.block" default-align="justify" @update="emit('update', $event)" />
+    <BlockStyleRow :block="props.block" default-align="justify" :show-indent="false" @update="emit('update', $event)" />
 
     <div v-for="(e, i) in props.block.entries" :key="e.id" class="source-entry">
       <div class="source-entry-head">
